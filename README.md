@@ -5,4 +5,6 @@ This is a work in progress, hopefully more than a dump of my current work, but i
 
 Included are sources for the motor controller cpu (lpc1769), the head unit application (beagle bone black), the battery monitor (arduino) and the pic that controlls battery balance for each of the 77 lithium cells.  Also included are collected docs from the original chrysler program (motor and controller) and schematic/pcb layout for the cpu board and the balancer boards.
 
-More to come..
+Initial commit of sources and pcb files
+
+I would be happy to discuss this project:  dougsc@yahoo.com
