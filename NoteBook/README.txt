@@ -1,0 +1,1 @@
+PDF scan of working notebook

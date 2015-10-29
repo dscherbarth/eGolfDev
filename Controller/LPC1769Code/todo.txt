@@ -1,0 +1,68 @@
+1. x Reliable (filtered) rpm
+2. x Use the index counter in rpm?
+3. x add another switch to provide for reverse
+4. x stator rpm calculate and display
+5. x capture or map tune while in auto v/f
+6.   dynamic tune for auto v/f slope 
+7. x bumpless auto -> manual v/f
+8. x more buttons for mode control and page control
+9. x use a timer to get index pulse period and average that value instead of counting pulses
+10.x structure for v/f based on minrpm/maxrpm minv/maxv perhaps multiple steps
+11.x setup for power supply voltage setting (up to 330v)
+12.  test power (watthours) integration
+13.x head unit interface intgration for display
+14.x head unit integration for control
+15.x head unit construction
+16.x adjust voltage in vft table
+17.  adjust slip table calc (re-test max slip number at zero rpm)
+18.x 3rd harmonic replacement for sine table
+19.x toggle trigger and base for current collection in mcpwm lim0 interrupt 
+20.x head unit using 12v as supply
+21.  bumper car mode using slip
+22.nomultiple i2c channels
+23.noi2c command buffer processing via message complete irq handling
+24.nofaster main loop?
+25.x watchdog timer imp (reset lcd, display message, led on, stop pwm, fault, take start/stop seq into account)
+26.  log several runs and start archiving (why is output jumpy?)
+27.  calibrate accelerator pedal (experimentally, auto?)
+28.x adc reader collision resolution (started by lim0 int or by 1/10 second main loop...)
+29.x can bus primitives and init
+30.x can bus connection and debug
+31.  sim and debug nxpfoc
+32.x remove old zilog foc code
+33.x how to clear old warnings? (stop/restart lpcexpresso)
+34.  clean can interface so head unit change has little impact on nxp
+
+12/13/13  repair/debug charger driver board, replace mark iii nxp, assemble mk ii lipo stack
+
+foc todo
+
+1.   zero current, zero pos, zero Qsp. step position debug
+2.   motor numbers use/ model
+3.   4k sample fast logging to head unit sd card
+4.   
+
+6/15/14 todo
+
+1.	debug new phase current test code
+2.	validate 6 igbt outputs
+3.	simplify foc enable/disable/start/stop/init code
+4.	new igbt driver test definition
+5.	igbt driver fault handler
+6.	continuous snapshot/logging fetch after fault/trigger
+7.	option for fewer samples/longer time on snapshot
+
+void focpwmDisable( void )
+{
+	// disable foc updates
+	pmc->ctrl.enabled = 0;
+
+	// reset pwm values to zero
+	pfoc->pwm.A.full = 0;
+	pfoc->pwm.B.full = 0;
+	pfoc->pwm.C.full = 0;
+
+	// and drive to zero state
+	vMC_LIB_SetPWM_F6_10(&pfoc->pwm);
+}
+
