@@ -30,6 +30,7 @@
 int	snap_fetched = 0;
 int	snap_ready = 0;
 int snap_fetching = FALSE;
+int ctog = 0;
 int16_t snapdata1[MAXSNAP];		// space for this snapshot
 int16_t snapdata2[MAXSNAP];		// space for this snapshot
 int16_t snapdata3[MAXSNAP];		// space for this snapshot
@@ -37,6 +38,12 @@ int16_t snapdata4[MAXSNAP];		// space for this snapshot
 int16_t snapdata5[MAXSNAP];		// space for this snapshot
 int16_t snapdata6[MAXSNAP];		// space for this snapshot
 int16_t snapdata7[MAXSNAP];		// space for this snapshot
+int16_t snapdata8[MAXSNAP];		// space for this snapshot
+int16_t snapdata9[MAXSNAP];		// space for this snapshot
+int16_t snapdata10[MAXSNAP];		// space for this snapshot
+int16_t snapdata11[MAXSNAP];		// space for this snapshot
+int16_t snapdata12[MAXSNAP];		// space for this snapshot
+int16_t snapdata13[MAXSNAP];		// space for this snapshot
 
 extern GtkWidget *box;
 extern GdkColor color;
@@ -55,21 +62,44 @@ void handle_snap_frame (struct can_frame *frame)
 
 		case SNAPDATA1 :
 			// save the data
-			snapdata1[snap_fetched] = frame->data[0] + (frame->data[1] << 8);
-			snapdata2[snap_fetched] = frame->data[2] + (frame->data[3] << 8);
-			snapdata3[snap_fetched] = frame->data[4] + (frame->data[5] << 8);
+			if (ctog)
+			{
+				snapdata8[snap_fetched] = frame->data[0] + (frame->data[1] << 8);
+				snapdata9[snap_fetched] = frame->data[2] + (frame->data[3] << 8);
+				snapdata10[snap_fetched] = frame->data[4] + (frame->data[5] << 8);
+			} 
+			else
+			{
+				snapdata1[snap_fetched] = frame->data[0] + (frame->data[1] << 8);
+				snapdata2[snap_fetched] = frame->data[2] + (frame->data[3] << 8);
+				snapdata3[snap_fetched] = frame->data[4] + (frame->data[5] << 8);
+			}
 			break;
 
 		case SNAPDATA2 :
 			if (snap_fetching)
 			{
+			// save the data
+				if (ctog)
+				{
 				// save the data
-				snapdata4[snap_fetched] = frame->data[0] + (frame->data[1] << 8);
-				snapdata5[snap_fetched] = frame->data[2] + (frame->data[3] << 8);
-				snapdata6[snap_fetched] = frame->data[4] + (frame->data[5] << 8);
+					snapdata11[snap_fetched] = frame->data[0] + (frame->data[1] << 8);
+					snapdata12[snap_fetched] = frame->data[2] + (frame->data[3] << 8);
+					snapdata13[snap_fetched] = frame->data[4] + (frame->data[5] << 8);
+				}
+				else
+				{
+					snapdata4[snap_fetched] = frame->data[0] + (frame->data[1] << 8);
+					snapdata5[snap_fetched] = frame->data[2] + (frame->data[3] << 8);
+					snapdata6[snap_fetched] = frame->data[4] + (frame->data[5] << 8);
+				}
 				
 				// ask for the next one
-				snap_fetched++;
+				if (ctog ) snap_fetched++;
+
+				// collection toggle
+				if (ctog) ctog = 0; else ctog = 1;
+
 				frame->can_id = GETSNAP;
 				frame->can_dlc = 8;
 				can_cmd (GETSNAP, 0);
@@ -206,7 +236,7 @@ void *snap_get (void *ptr)
 	// on complete, update the databox
 	for (i=0; i<100; i++)
 	{
-		usleep(100000);	// .1 sec
+		usleep(150000);	// .1 sec
 		sprintf(temp, "got %d records", snap_fetched);
 		gdk_threads_enter();
 		disp_msg (temp);
@@ -219,7 +249,7 @@ void *snap_get (void *ptr)
 	
 	// handle cleanup
 //	if (i == 100)
-	if (i == 10)
+	if (i == 100)
 	{
 		sprintf(temp, "Timed out fetching snapshot at %d", snap_fetched);
 		gdk_threads_enter();
@@ -257,15 +287,12 @@ void *snap_get (void *ptr)
 		if (snapf != NULL)
 		{
 			snapnum++;
+			fprintf (snapf, "Qsp, Iq, Vq, Ia, Ib, Ic, Id, Vd, Sa, RPM, sin, cos \n");
 			for(i=0; i<2000; i++)
 			{
-				fprintf(snapf, "%d, %d, %d, %d, %d, %d, %d\n", 	snapdata1[i], 
-																snapdata2[i], 
-																snapdata3[i], 
-																snapdata4[i], 
-																snapdata5[i], 
-																snapdata6[i], 
-																snapdata7[i] ); 
+				fprintf(snapf, "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", 	
+snapdata1[i], snapdata2[i], snapdata3[i], snapdata4[i], snapdata5[i], snapdata6[i], 
+snapdata8[i],snapdata9[i],snapdata10[i],snapdata11[i],snapdata12[i],snapdata13[i] ); 
 			}
 			fclose (snapf);
 
@@ -291,6 +318,9 @@ static pthread_t	snap_2;
 void snapshot_action (void) 
 {
 	int i;
+
+	// reset the collection toggle
+	ctog = 0;
 	
 	// trigger the snapshot
 	can_cmd (STARTSNAP, get_snapres());

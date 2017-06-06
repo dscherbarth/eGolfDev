@@ -372,6 +372,7 @@ void live_data_update (struct can_frame *frame)
 					data_current = TRUE;
 
 					// this is the one
+
 					dv = frame->data[0] + (frame->data[1] << 8);
 					l_d[i].val = dv;
 					sprintf (temp, "%04d", dv);
@@ -1116,6 +1117,7 @@ void *update_window (void *ptr)
 			}
 			fclose(bpf);
 		}
+#define torque 1
 #ifdef torque		
 		sens = fopen("/sys/bus/platform/devices/tiadc/iio:device0/in_voltage4_raw", "r");
 		if (sens != NULL)
@@ -1145,9 +1147,12 @@ void *update_window (void *ptr)
 		
 		pounds = mv * .5119;	// linear?
 		
-		if (max < pounds) max = pounds;
-		sprintf(sens_data, "%4.0f", max);
+//		if (max < pounds) max = pounds;
+//		sprintf(sens_data, "%4.0f", max);
+		sprintf (sens_data, "%4d", sens_val);
 		gtk_label_set (GTK_LABEL (load_cell_h), sens_data);
+		can_cmd (601, sens_val);
+
 #else
 		hp = (float) (amps / 10) * (float) volts * .0013404; 
 		if (rpm < 10) rpm = 10;		
