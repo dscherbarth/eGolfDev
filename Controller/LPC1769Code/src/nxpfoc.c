@@ -186,11 +186,11 @@ int GetQsetpointLimit (void)
 
 	if (rpm < 100)
 	{
-		return 3700;
+		return 4000;
 	}
 	else if (rpm < 1000)
 	{
-		return 4000;
+		return 4100;
 	}
 	else if (rpm <3000)
 	{
@@ -216,6 +216,8 @@ void MCEsetQandD (int Q, uint32_t D)
 {
 	static F6_10	ftemp, QSetPoint, DSetPoint;
 	static F6_10	SaveQSetPoint, SaveDSetPoint;
+	static F6_10	rpmbump_Factor;
+
 	int Lim;
 
 	float	dif;
@@ -292,7 +294,7 @@ void MCEsetQandD (int Q, uint32_t D)
 	}
 
 	// make sure we have battery headroom if we are regening
-	if (QSetPoint.full < 0 && getBusvolt () > 315)
+	if (QSetPoint.full < 0 && getBusvolt () > 355)
 	{
 		QSetPoint.full = 0;
 	}
@@ -326,8 +328,8 @@ void MCEsetQandD (int Q, uint32_t D)
 		if (SaveQSetPoint.full > Lim) SaveQSetPoint.full = Lim;
 	}
 
-	setStatVal (SVPHAC, SaveDSetPoint.full);
-	setStatVal (SVPHCC, SaveQSetPoint.full);
+//	setStatVal (SVPHAC, SaveDSetPoint.full);
+//	setStatVal (SVPHCC, SaveQSetPoint.full);
 
 	pfoc->pidQ.sp.full = SaveQSetPoint.full;
 	pfoc->pidD.sp.full = SaveDSetPoint.full;
@@ -436,9 +438,9 @@ static int ialnum = 0, iblnum= 0 , iclnum = 0;
 void CurrentLimit (void)
 {
 	int ia, ib, ic;
-#define CFMAX 1500		// should be 450 Amps
+#define CFMAX 1800		// should be 480 Amps
 #define CLMAX 1000		// should be 300 Amps
-#define CFLTNUM		3 	// number of times this must be true
+#define CFLTNUM		7 	// number of times this must be true
 #define CLIMNUM		1 	// number of times this must be true
 	int stopflag = 0;
 
@@ -536,8 +538,12 @@ void LimitVqVd(F6_10 *pVq, F6_10 *pVd)
 	}
 }
 
+void RetPWM (uint16_t * a, uint16_t * b, uint16_t * c );
+
 F6_10	tpd, tpq;
 F6_10	PJPId, PJPIq;
+extern	uint32_t			gRPM;
+
 /*****************************************************************************
 ** Function name:		vMC_FOC_Loop
 **
@@ -616,6 +622,7 @@ void vMC_FOC_Loop(void)
 //	addSRec (512-vr1.full, 512-vr2.full, 512-vr3.full, 512-pfoc->pwm.A.full,512-pfoc->pwm.B.full, Slipalpha.full / 10);
 //	addSRec (Ia.full, Ic.full, pfoc->pwm.A.full, sinAlpha.full, cosAlpha.full, Slipalpha.full / 10);
 //	addSRec ((qei_readPos()/10), qei_readDir() * 1000, pfoc->pwm.A.full, pfoc->pwm.B.full, pfoc->pwm.C.full, Slipalpha.full / 10);
+//	addSRec (pfoc->pwm.A.full,pfoc->pwm.B.full,pfoc->pwm.C.full,ta, tb, tc);
 
 
 	if(pmc->ctrl.enabled)vMC_LIB_SetPWM_F6_10(&pfoc->pwm);
@@ -624,8 +631,9 @@ void vMC_FOC_Loop(void)
 	RetPWM (&ta, &tb, &tc);
 
 	addSRec (pfoc->pidQ.sp.full, pfoc->Iq.full, pfoc->Vq.full, Ia.full, Ib.full, Ic.full);
-//	addSRec (pfoc->pwm.A.full,pfoc->pwm.B.full,pfoc->pwm.C.full,ta, tb, tc);
-	addSRec (pfoc->Id.full, pfoc->Vd.full, ta, qei_read32RPM(), sinAlpha.full, cosAlpha.full);
+	addSRec (pfoc->Id.full, pfoc->Vd.full, ta, gRPM, sinAlpha.full, cosAlpha.full);
+////	addSRec (11,12,13,14,15,16);
+////	addSRec (22,23,24,25,26,27);
 
 //	dacR ();
 

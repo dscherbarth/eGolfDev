@@ -20,8 +20,8 @@
 #ifndef __MCPWM_H 
 #define __MCPWM_H
 
-#define SHADOW_UPDATE		1
-#define AC_MODE				1
+#define SHADOW_UPDATE		0
+#define AC_MODE				0
 #define DC_MODE				0
 #define CHANNEL_0_CAPTURE	0
 #define CHANNEL_1_CAPTURE	0
@@ -48,8 +48,6 @@ void MCPWM_Start(uint32_t channel0, uint32_t channel1, uint32_t channel2);
 void MCPWM_Stop(uint32_t channel0, uint32_t channel1, uint32_t channel2);
 void MCPWM_acMode(uint32_t acMode);
 void MCPWM_dcMode(uint32_t dcMode, uint32_t outputInvered, uint32_t outputPattern);
-void MCPWM_EnableLimInt(void);
-inline uint32_t map(uint32_t x, uint32_t in_min, uint32_t in_max, uint32_t out_min, uint32_t out_max);
 
 #endif /* end __MCPWM_H */
 /****************************************************************************

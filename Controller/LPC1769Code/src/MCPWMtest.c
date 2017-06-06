@@ -510,7 +510,7 @@ int main (void)
 		}
 
 		// integrate remaining power
-		addwatthours (getBusvolt(), getBuscurrent(), .1);
+		addwatthours (getBusvolt(), getBuscurrent(), .095);
 		setStatVal ( SVBATP,  (uint32_t)batterypercent ());
 
 		// propagate info to the head unit

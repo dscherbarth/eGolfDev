@@ -87,12 +87,12 @@ void exeControl(void)
 	int regen;
 
 
-	setStatVal (SVSRPM, getAccelvalue()/2);
+	setStatVal (SVSRPM, getAccelvalue());
 
-	setStatVal ( SVACCEL, getAccelvalue()/2);
+	setStatVal ( SVACCEL, getAccelvalue());
 
-	Id_cmd = 1;
 	Iq_cmd = 0;
+	Id_cmd = 0;
 
 	// get Is_sq based on throttle position (table lookup)
 	Is = MgetAccSq (getAccelvalue()/2);			//0 - 13500 / 3
@@ -100,19 +100,20 @@ void exeControl(void)
 	Is *= Is;
 	if (Is > 0) // motoring :-)
 	{
+		// get Id_cmd based on present rpm (table lookup)
+		Id_cmd = MgetMagVal (gRPM);
+
 		if (Id_cmd < Is)
 		{
 			Iq_cmd = sqrt (Is - (Id_cmd * Id_cmd)); // as big as 27000
 
-			// get Id_cmd based on present rpm (table lookup)
-			Id_cmd = MgetMagVal (gRPM);
 		}
 	}
 	else	// zero throttle
 	{
 		// use regen if requested and bus volts and amps allow
 		if ((gRPM > 100) &&
-			(getBusvolt () < 310) &&
+			(getBusvolt () < 350) &&
 			(getBuscurrent () < 40))
 		{
 //			if (regenVal > 0)

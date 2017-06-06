@@ -179,12 +179,12 @@ static motor_t	bighp = {
 		0.280,
 		3.0,
 		1.0,
-		150.0,		// testing
-		200.0,		// testing
+		250.0,		// testing
+		350.0,		// testing
 //		300.0,		// yikes!!
 //		400.0,		// double yikes!
 		2,			// post gain (atten)
-		1.5, .50, 0.0,
+		1.2, .55, 0.0,
 		1.00, .70, 0.0,
 		4096,
 		mm_book_mag,

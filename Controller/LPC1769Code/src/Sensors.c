@@ -191,7 +191,7 @@ void updateSensors (void)
 	// bus voltage
 	if ((getADC (VOLTSINDEX) >> 3) == (lastvolt >> 3))
 	{
-		busvolt = (busvolt * .4) + ((float)getADC (VOLTSINDEX) * .0814 * .6);	// Get the value
+		busvolt = (busvolt * .4) + ((float)getADC (VOLTSINDEX) * .0912 * .6);	// Get the value
 		setStatVal (SVVOLTS, busvolt);
 	}
 	lastvolt = getADC (VOLTSINDEX);
@@ -200,7 +200,7 @@ void updateSensors (void)
 	// convert to Amps
 	if ((getBusIVal () >> 2) == (lastbusa >> 2))
 	{
-		buscurrent = (buscurrent * .7) + ((((float)getBusIVal () - getampoffset()) * .3535) * .3);	// Get the value
+		buscurrent = (buscurrent * .7) + ((((float)getBusIVal () - getampoffset()) * .2929) * .3);	// Get the value
 
 		// average
 		setStatVal (SVAMPS, buscurrent * 10);		// shift by 1 dec to make fixed point
