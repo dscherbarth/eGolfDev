@@ -8,3 +8,6 @@ Included are sources for the motor controller cpu (lpc1769), the head unit appli
 Initial commit of sources and pcb files
 
 I would be happy to discuss this project:  dougsc@yahoo.com
+
+6/8/17 Updates for latest controller tuning and new battery monitor/balancer hardware software
+
