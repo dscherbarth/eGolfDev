@@ -389,7 +389,6 @@ boolean setBalance(boolean take_action, int balvolts)
   boolean balFlag = false;
   uint8_t icBal[TOTAL_IC][6];
 
-
   balcnt = 0;
   // check all the valid data in cells for > BALLIMIT
   for(int i=0; i<TOTAL_IC; i++)
@@ -537,12 +536,28 @@ Serial.println("total volts");
 
 #define POSTCHARGEWAIT  3600    // balance for up to 1 hour
 int postChargeBalance = 0;
+int eqvolts = 41500;    // default start point
+int eqcounter = 0;
+
+int lowestV()
+{
+    eqvolts = 41000;
+    for (int i=0; i<TOTAL_IC; i++)
+    {
+      for (int j=0; j<11; j++)
+      {
+        if (data_valid[i][0] > 3 && (cell_codes[i][j] < eqvolts))
+        {
+          eqvolts = cell_codes[i][j];
+        }
+      }
+    }
+    return eqvolts;
+}
 
 // handleCurrentState
 //  manage the state machine
 //
-int eqvolts = 41500;    // default start point
-int eqcounter = 0;
 void handleCurrentState()
 {
 
@@ -561,18 +576,7 @@ void handleCurrentState()
       {
         case STATEEQINIT :
           // determine the lowest voltage
-          eqvolts = 41000;
-          eqcounter = 0;
-          for (int i=0; i<TOTAL_IC; i++)
-          {
-            for (int j=0; j<11; j++)
-            {
-              if (data_valid[i][0] > 3 && (cell_codes[i][j] < eqvolts))
-              {
-                eqvolts = cell_codes[i][j];
-              }
-            }
-          }
+          eqvolts = lowestV();
 Serial.print(eqvolts); Serial.print(" ");
 Serial.println("eq volts");
 
@@ -646,7 +650,9 @@ Serial.println("not done");
           }
           else
           {
-            setBalance(true, BALTHRESH);
+            #define CHEQTHRESH 50   // .05 Volts
+            int lowV = lowestV() + CHEQTHRESH;
+            setBalance(true, lowV < BALTHRESH? lowV : BALTHRESH);
           }
           break;
           
@@ -752,7 +758,8 @@ void statusLeds(void)
   } else if (currentState == STATECHARGING)
   {
     strip.setPixelColor(9, strip.Color(0,64,0));
-    if (setBalance(false, BALTHRESH))
+    int lowV = lowestV() + CHEQTHRESH;
+    if (setBalance(true, lowV < BALTHRESH? lowV : BALTHRESH))
     {
       strip.setPixelColor(8, strip.Color(64,64,0));   // yellow
     } else if(overVoltage())
