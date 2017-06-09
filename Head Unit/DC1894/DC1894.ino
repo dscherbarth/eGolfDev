@@ -541,18 +541,18 @@ int eqcounter = 0;
 
 int lowestV()
 {
-    eqvolts = 41000;
+    int lowvolts = 41000;
     for (int i=0; i<TOTAL_IC; i++)
     {
       for (int j=0; j<11; j++)
       {
-        if (data_valid[i][0] > 3 && (cell_codes[i][j] < eqvolts))
+        if (data_valid[i][0] > 3 && (cell_codes[i][j] < lowvolts))
         {
-          eqvolts = cell_codes[i][j];
+          lowvolts = cell_codes[i][j];
         }
       }
     }
-    return eqvolts;
+    return lowvolts;
 }
 
 // handleCurrentState
@@ -759,7 +759,7 @@ void statusLeds(void)
   {
     strip.setPixelColor(9, strip.Color(0,64,0));
     int lowV = lowestV() + CHEQTHRESH;
-    if (setBalance(true, lowV < BALTHRESH? lowV : BALTHRESH))
+    if(setBalance(true, lowV < BALTHRESH? lowV : BALTHRESH))
     {
       strip.setPixelColor(8, strip.Color(64,64,0));   // yellow
     } else if(overVoltage())
