@@ -209,10 +209,11 @@ void updateSensors (void)
 
 	// accelerator
 	// read from pot position
-//	accelValue = (accelValue * .4) + ((float)getaccVal () * .6) - accelOffset;
-	accelValue = getaccVal () - accelOffset;
-	accelScaleAdder = accelValue * .1098;
+	accelValue = (accelValue * .4) + ((float)getaccVal () * .6) - accelOffset;
+//	accelValue = getaccVal () - accelOffset;
+	accelScaleAdder = accelValue * .115;
 	accelValue += accelScaleAdder;
+	accelValue -= 300;				// space for regen
 
 	// tune
 //	tuneValue = (tuneValue * .7) + ((float)getADC (TUNEINDEX) * .3);	// Get the value

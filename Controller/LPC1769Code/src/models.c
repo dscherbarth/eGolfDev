@@ -185,7 +185,7 @@ static motor_t	bighp = {
 //		400.0,		// double yikes!
 		2,			// post gain (atten)
 		1.2, .55, 0.0,
-		1.00, .70, 0.0,
+		1.10, .73, 0.0,
 		4096,
 		mm_book_mag,
 		mm_book_torque

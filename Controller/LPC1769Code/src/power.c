@@ -45,7 +45,7 @@ void addwatthours (float volts, float amps, float seconds)
 {
 	watthours += ((amps - aoffset) * (volts - voffset) * (seconds / 3600.0) );		// should handle regen too if amps is negative
 	sec_count++;
-	setStatVal (SVPHAC, (uint32_t)(getBusIVal ()));
+//	setStatVal (SVPHAC, (uint32_t)(getBusIVal ()));
 //	setStatVal (SVSRPM, (uint32_t)(aoffset));
 	setStatVal (SVPHCC, (uint32_t)watthours);
 

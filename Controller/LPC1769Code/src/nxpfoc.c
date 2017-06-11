@@ -186,49 +186,25 @@ int GetQsetpointLimit (void)
 
 	if (rpm < 100)
 	{
-		return 4000;
+		return 4200;
 	}
 	else if (rpm < 1000)
 	{
-		return 4100;
+		return 4300;
 	}
 	else if (rpm <3000)
 	{
-		return 4200;
+		return 4400;
 	}
 	else
 	{
-		return 4300;
+		return 4500;
 	}
 }
 
-//
-// MCEsetQandD	Set torque and f based magnet values and set the slip value
-//
-//	inputs:
-//		Q			torque
-//		D			rpm based magnet value
-//
-//	outputs:
-//		nothing
-//
-void MCEsetQandD (int Q, uint32_t D)
+F6_10	pi;
+void QDinit()
 {
-	static F6_10	ftemp, QSetPoint, DSetPoint;
-	static F6_10	SaveQSetPoint, SaveDSetPoint;
-	static F6_10	rpmbump_Factor;
-
-	int Lim;
-
-	float	dif;
-	F6_10	pi;
-
-	QSetPoint.full = Q; 	// delivered << by 10 bits
-	DSetPoint.full = D; 	// delivered << by 10 bits
-
-	SaveQSetPoint.full = pfoc->pidQ.sp.full;
-	SaveDSetPoint.full = pfoc->pidD.sp.full;
-
 	if (!QandDinited)
 	{
 		cpr = MgetEncCPR ();
@@ -250,6 +226,13 @@ void MCEsetQandD (int Q, uint32_t D)
 
 		QandDinited = 1;
 	}
+}
+
+uint32_t QLimit (F6_10 QSetPoint)
+{
+	F6_10 SaveQSetPoint = QSetPoint;
+	float	dif;
+
 
 	// overspeed protection
 	limiting = 0;
@@ -299,6 +282,37 @@ void MCEsetQandD (int Q, uint32_t D)
 		QSetPoint.full = 0;
 	}
 
+	return QSetPoint.full;
+}
+
+//
+// MCEsetQandD	Set torque and f based magnet values and set the slip value
+//
+//	inputs:
+//		Q			torque
+//		D			rpm based magnet value
+//
+//	outputs:
+//		nothing
+//
+void MCEsetQandD (int Q, uint32_t D)
+{
+	static F6_10	ftemp, QSetPoint, DSetPoint;
+	static F6_10	SaveQSetPoint, SaveDSetPoint;
+	static F6_10	rpmbump_Factor;
+
+	int Lim;
+
+	QSetPoint.full = Q; 	// delivered << by 10 bits
+	DSetPoint.full = D; 	// delivered << by 10 bits
+
+	SaveQSetPoint.full = pfoc->pidQ.sp.full;
+	SaveDSetPoint.full = pfoc->pidD.sp.full;
+
+	QDinit();
+
+	QSetPoint.full = QLimit(QSetPoint);
+
 	// load up the setpoints
 	if (!limiting & !climiting)
 	{
@@ -309,27 +323,13 @@ void MCEsetQandD (int Q, uint32_t D)
 	ftemp.full = DIV_F6_10(SaveQSetPoint, SaveDSetPoint);	// regen will make negative slip
 	fs.full = MULT_F6_10(ftemp, fsconst);	// accounts for time constant (tr) and 1/2*PI
 
-//	if (QSetPoint.full < 0)
-//		{
-//		SaveQSetPoint.full = -QSetPoint.full; // slip might be negative but torque setpoint needs to be pos
-//		}
+	if (QSetPoint.full < 0)
+		{
+		SaveQSetPoint.full = -SaveQSetPoint.full; // slip might be negative but torque setpoint needs to be pos
+		}
 
 	// scale adjust for Qsp (this really just affects pedal position)
 	SaveQSetPoint.full /= 2;	// number might reach 6500 // should be *.289
-
-	// setpoint limit (clipping
-	Lim = GetQsetpointLimit ();
-	if (SaveQSetPoint.full < 0)
-	{
-		if (SaveQSetPoint.full < -Lim) SaveQSetPoint.full = -Lim;
-	}
-	else
-	{
-		if (SaveQSetPoint.full > Lim) SaveQSetPoint.full = Lim;
-	}
-
-//	setStatVal (SVPHAC, SaveDSetPoint.full);
-//	setStatVal (SVPHCC, SaveQSetPoint.full);
 
 	pfoc->pidQ.sp.full = SaveQSetPoint.full;
 	pfoc->pidD.sp.full = SaveDSetPoint.full;
@@ -438,9 +438,9 @@ static int ialnum = 0, iblnum= 0 , iclnum = 0;
 void CurrentLimit (void)
 {
 	int ia, ib, ic;
-#define CFMAX 1800		// should be 480 Amps
+#define CFMAX 1900		// should be 490 Amps
 #define CLMAX 1000		// should be 300 Amps
-#define CFLTNUM		7 	// number of times this must be true
+#define CFLTNUM		8 	// number of times this must be true
 #define CLIMNUM		1 	// number of times this must be true
 	int stopflag = 0;
 
@@ -628,12 +628,10 @@ void vMC_FOC_Loop(void)
 	if(pmc->ctrl.enabled)vMC_LIB_SetPWM_F6_10(&pfoc->pwm);
 
 	// get the pwm values we just used
-	RetPWM (&ta, &tb, &tc);
+//	RetPWM (&ta, &tb, &tc);
 
-	addSRec (pfoc->pidQ.sp.full, pfoc->Iq.full, pfoc->Vq.full, Ia.full, Ib.full, Ic.full);
-	addSRec (pfoc->Id.full, pfoc->Vd.full, ta, gRPM, sinAlpha.full, cosAlpha.full);
-////	addSRec (11,12,13,14,15,16);
-////	addSRec (22,23,24,25,26,27);
+	addSRec (pfoc->pidQ.sp.full, pfoc->Iq.full, pfoc->Vq.full, fs.full, gRPM, pfoc->Id.full);
+	addSRec (pfoc->Vd.full, Ia.full , Ib.full, Ic.full, sinAlpha.full, cosAlpha.full);
 
 //	dacR ();
 
