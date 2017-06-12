@@ -263,6 +263,11 @@ void TrendWrite(void)
 
 GtkWidget	*prog;
 
+GtkWidget	*prog_kw;
+GtkWidget	*prog_kw_lag;
+GtkWidget	*prog_kw_regen;
+GtkWidget	*prog_kw_regen_lag;
+
 void *update_window (void *ptr);
 char *fmsg[] = {"                    ", "OVER TEMP", "OVER CURRENT", "OVER VOLT", "UNDER VOLT", "OIL PRESSURE", "PRECHARGE", "CURR FAULT","PHASE TEST FAIL", "RELAYPOS", "LOOP CURR A", "LOOP CURR B", "LOOP CURR C"};
 char *lmsg[] = {"                    ", "Current", "RPM", "Temperature", "HW Current", "SW Current", "                "};
@@ -987,6 +992,35 @@ void init_windows (int argc, char *argv[])
 	gtk_fixed_put(GTK_FIXED(fixed), prog, 800, 10);
 	gtk_widget_set_size_request(prog, 214, 50);
 	
+	// add kw in/out bargraphs
+	prog_kw_regen = gtk_progress_bar_new ();
+	prog_kw = gtk_progress_bar_new ();
+	prog_kw_lag = gtk_progress_bar_new ();
+	prog_kw_regen_lag = gtk_progress_bar_new ();
+
+	// set text, orientation and color
+	gtk_progress_bar_set_text ((GtkProgressBar *)prog_kw, "Kw");
+	gtk_progress_bar_set_text ((GtkProgressBar *)prog_kw_regen, "R Kw");
+	gtk_progress_bar_set_orientation ((GtkProgressBar *)prog_kw_regen, GTK_PROGRESS_RIGHT_TO_LEFT);
+	GdkColor orange = {0, 0xffff, 0x3fff, 0x0000};
+    GdkColor blue = {0, 0x0000, 0xffff, 0x3fff};
+    GdkColor white = {0, 0xffff, 0xffff, 0xffff};
+    GdkColor black = {0, 0x0000, 0x0000, 0x0000};
+	
+    gtk_widget_modify_bg((GtkProgressBar *)prog_kw, GTK_STATE_SELECTED, &orange);
+    gtk_widget_modify_fg((GtkProgressBar *)prog_kw, GTK_STATE_NORMAL, &white);
+    gtk_widget_modify_bg((GtkProgressBar *)prog_kw, GTK_STATE_NORMAL, &black);
+
+    gtk_widget_modify_bg((GtkProgressBar *)prog_kw_regen, GTK_STATE_SELECTED, &blue);
+    gtk_widget_modify_fg((GtkProgressBar *)prog_kw_regen, GTK_STATE_NORMAL, &white);
+    gtk_widget_modify_bg((GtkProgressBar *)prog_kw_regen, GTK_STATE_NORMAL, &black);
+	
+	// set position
+	gtk_fixed_put(GTK_FIXED(fixed), prog_kw, 600, 24);
+	gtk_widget_set_size_request(prog_kw, 180, 30);
+	gtk_fixed_put(GTK_FIXED(fixed), prog_kw_regen, 500, 24);
+	gtk_widget_set_size_request(prog_kw_regen, 100, 30);
+
 	// add data display labels
 	init_livedata (fixed);
 
@@ -1025,7 +1059,7 @@ void *update_window (void *ptr)
 	float	mv, zero_pounds, pounds, kgs;
 	FILE	*bpf;
 	char 	data[100];
-	float hp, tq;
+	float hp, tq, kw;
 	
 
 	while (1)
@@ -1160,6 +1194,29 @@ void *update_window (void *ptr)
 		sprintf(sens_data, "%5.1f", tq);
 		gtk_label_set (GTK_LABEL (load_cell_h), sens_data);
 #endif
+
+		// kw and regen bargraphs
+		kw = (((float) (amps / 10) * (float) volts) / 1000.0) / 100;
+		if (kw < 0)
+		{
+			sprintf (btemp, "R kw %4.1f%", -kw * 100.0);
+			gtk_progress_bar_set_text ((GtkProgressBar *)prog_kw_regen, btemp);
+			gtk_progress_bar_set_fraction ((GtkProgressBar *)prog_kw, 0.0);
+			gtk_progress_bar_set_fraction ((GtkProgressBar *)prog_kw_regen, -kw * 8.0);
+
+			gtk_progress_bar_set_text ((GtkProgressBar *)prog_kw, "kw");
+			
+		}
+		else
+		{
+			sprintf (btemp, "kw %4.1f%", kw * 100.0);
+			gtk_progress_bar_set_text ((GtkProgressBar *)prog_kw, btemp);
+			gtk_progress_bar_set_fraction ((GtkProgressBar *)prog_kw_regen, 0.0);
+			gtk_progress_bar_set_fraction ((GtkProgressBar *)prog_kw, kw);
+
+			gtk_progress_bar_set_text ((GtkProgressBar *)prog_kw_regen, "R kw");
+		}	
+		
 		gdk_threads_leave();
 		data_current = FALSE;
 
