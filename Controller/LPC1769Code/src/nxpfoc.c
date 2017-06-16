@@ -209,11 +209,6 @@ void QDinit()
 	{
 		cpr = MgetEncCPR ();
 
-		fltemp = (2 * 3.14159265);
-		fltemp *= MgetTimeConst();
-		flconst = (1.0 / fltemp) / ((POLEPAIRS * PWM_FREQUENCY) / cpr); // 1/((2 * pi) * Tr) / (10000 / 2000)
-		fsconst.full = F6_10_CONST(flconst);
-
 		pi.full = F6_10_CONST(3.14159265358979);
 		polespi.full = MULT_F6_10s(pi, (1 << 10));
 
@@ -226,6 +221,13 @@ void QDinit()
 
 		QandDinited = 1;
 	}
+
+	// if Tr is based on rpm we need to re-fetch
+	fltemp = (2 * 3.14159265);
+	fltemp *= MgetTimeConst();
+	flconst = (1.0 / fltemp) / ((POLEPAIRS * PWM_FREQUENCY) / cpr); // 1/((2 * pi) * Tr) / (10000 / 2000)
+	fsconst.full = F6_10_CONST(flconst);
+
 }
 
 uint32_t QLimit (F6_10 QSetPoint)

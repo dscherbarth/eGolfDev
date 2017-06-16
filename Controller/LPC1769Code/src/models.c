@@ -24,7 +24,6 @@
     ;
     ;; qdImag = qdImag + qKcur * (qId - qdImag)      ;; magnetizing current
     ;; qVelSlip   = qKslip * qIq/qdImag
-
 */
 
 // little motor tables
@@ -419,6 +418,7 @@ void MsetTimeConst (float tc)
 		return;
 	}
 	selMod->tr_factor = tc;
+	selMod->tc_table[1].result = (uint32_t)(tc * 1000);
 }
 
 void MgetDPID (float *p, float *i, float *d)
