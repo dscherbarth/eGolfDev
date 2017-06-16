@@ -84,6 +84,11 @@ static param_table mm_book_mag[] = { {0,			1050},
 									{-1,		-1}
 };
 
+static param_table bm_time_const[] = { {0,			280},
+									{10000,			280},
+									{-1, 			-1}
+};
+
 static param_table mm_book_torque[] = { {0,				0},
 										{228,			384},
 										{292,			512},
@@ -151,7 +156,8 @@ static motor_t	qhp = {
 		.8, 0.0, 0.0,
 		2000,
 		lm_mag,
-		lm_torque
+		lm_torque,
+		bm_time_const
 };
 
 static motor_t	oohhp = {
@@ -168,7 +174,8 @@ static motor_t	oohhp = {
 		.15, 0.0, 0.0,			// Q
 		2000,
 		mm_book_mag,
-		mm_book_torque
+		mm_book_torque,
+		bm_time_const
 };
 
 static motor_t	bighp = {
@@ -188,9 +195,8 @@ static motor_t	bighp = {
 		1.10, .73, 0.0,
 		4096,
 		mm_book_mag,
-		mm_book_torque
-//		bm_mag,
-//		bm_torque
+		mm_book_torque,
+		bm_time_const
 };
 
 static motor_t	*selMod = 0;
@@ -277,6 +283,51 @@ uint32_t MgetMagVal (uint32_t rpm)
 
 }
 
+uint32_t MgetTimeC (uint32_t rpm)
+{
+	int	tcIndex;
+	int tcval;
+	float sperc, tv;
+
+
+	// protect against un-selected model
+	if (!selMod)
+	{
+		return 1;		// limit div/0 possibility
+	}
+
+	// not found! zero index should be safe
+	if (rpm < selMod->tc_table[0].input)
+		{
+		return (selMod->tc_table[0].result);
+		}
+
+	// search the table
+	for (tcIndex = 0; selMod->tc_table[tcIndex].input != -1; tcIndex++)
+		{
+			if (rpm >= selMod->tc_table[tcIndex].input && rpm < selMod->tc_table[tcIndex+1].input)
+			{
+				// found the segment, calculate the mag to return
+				tcval = selMod->tc_table[tcIndex].result;
+				sperc = (float)(rpm - selMod->tc_table[tcIndex].input) / (float)(selMod->tc_table[tcIndex+1].input - selMod->tc_table[tcIndex].input);
+
+				tv = ((float)(selMod->tc_table[tcIndex+1].result) - (float)(selMod->tc_table[tcIndex].result));
+				tv = tv * sperc;
+				tv = tv + tcval;
+				tcval = (int) tv;
+				return (tcval);
+			}
+		}
+
+	// off the end of the table, clamp the result at the end of the table
+	if (rpm > selMod->tc_table[tcIndex-1].input)
+	{
+		return (selMod->tc_table[tcIndex-1].result);
+	}
+
+	return 1;
+
+}
 int fakeoutisval = 0;
 void Isvalset (int val)
 {
@@ -354,10 +405,13 @@ int MgetRPMLimit (void)
 	return (selMod? selMod->maxrpm:0);
 }
 
+extern	uint32_t			gRPM;
 float MgetTimeConst (void)
 {
-	return (selMod? selMod->tr_factor:0.0);
+	return ((float)MgetTimeC(gRPM) / 1000);
+//	return (selMod? selMod->tr_factor:0.0);
 }
+
 void MsetTimeConst (float tc)
 {
 	if (!selMod)
