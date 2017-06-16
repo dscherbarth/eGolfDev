@@ -31,6 +31,7 @@ typedef struct  tag_params
 	int		encoder_cpr;	// counts per rev on the encoder
 	param_table		*mag_table;
 	param_table		*tq_table;
+	param_table		*tc_table;
 
 } motor_t;
 
