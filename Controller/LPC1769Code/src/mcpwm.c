@@ -27,6 +27,8 @@
 
 extern uint32_t	schan;
 
+uint32_t iCounter = 187;
+
 /******************************************************************************
 ** Function name:		MCPWM_IRQHandler
 **
@@ -49,6 +51,7 @@ void MCPWM_IRQHandler(void)
 		//start the ai read
 //		device_on(FAN);		// timing
 		SSPIntReadACI ();
+		iCounter++;
 		if (++slowcounter >= 50)
 		{
 		  // reset counter and choose next

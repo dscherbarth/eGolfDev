@@ -27,7 +27,6 @@
 #include "qei.h"
 #include "gpio.h"
 #include "fault.h"
-#include "status.h"
 #include "snapshot.h"
 #include "waveform.h"
 #include "control.h"
@@ -36,11 +35,7 @@
 #include "models.h"
 #include "timer.h"
 
-
-extern uint32_t	dacRValue;
-
 MC_DATA_Type mc;					// Definition of structure that holds all
-
 
 MC_DATA_Type* pmc;			// Local copy of pointer to global MC data structure
 FOC_Type* pfoc;				// Local copy of pointer to global FOC data structure
@@ -70,15 +65,11 @@ void vMC_FOC_Init(void)
 	pmc->ctrl.enabled = FALSE;
 
 	/* Initialize FOC PID values */
-//	pfoc->pidQ.out_max.full = INT16_MAX;
-//	pfoc->pidQ.out_min.full = INT16_MIN;
-	pfoc->pidQ.out_max.full = 2000;		// based on postgain of 2
-	pfoc->pidQ.out_min.full = -2000;
+	pfoc->pidQ.out_max.full = 6000;		// based on postgain of 2 (experimental)
+	pfoc->pidQ.out_min.full = -6000;
 	vMC_LIB_PID_Reset(&pfoc->pidQ);
 
-//	pfoc->pidD.out_max.full = INT16_MAX;
-//	pfoc->pidD.out_min.full = INT16_MIN;
-	pfoc->pidD.out_max.full = 2000;
+	pfoc->pidD.out_max.full = 2000;		// (experimental)
 	pfoc->pidD.out_min.full = -2000;
 	vMC_LIB_PID_Reset(&pfoc->pidD);
 
@@ -134,9 +125,6 @@ F6_10 sinAlpha, cosAlpha;	// Sine and cosine component of alpha
 F6_10	Ia, Ib, Ic;
 F6_10	vr1, vr2, vr3;
 
-extern int32_t reflect;
-extern int32_t dacaten;
-
 uint32_t	zpA, zpC;
 uint32_t	deltapos, currpos, lastpos;
 void focpwmEnable( void )
@@ -171,36 +159,11 @@ void focpwmEnable( void )
 }
 
 F6_10	fs;		// calculated target slip
-F6_10	igain, igain2;
+F6_10	igain;
 int		postgain = 5;
-uint32_t qerror = 0, derror = 0;
 uint32_t	limitState = 0;
 int limiting = 0;
 int climiting = 0;
-
-int GetQsetpointLimit (void)
-{
-	int rpm;
-
-	rpm = qei_read32RPM();
-
-	if (rpm < 100)
-	{
-		return 4200;
-	}
-	else if (rpm < 1000)
-	{
-		return 4300;
-	}
-	else if (rpm <3000)
-	{
-		return 4400;
-	}
-	else
-	{
-		return 4500;
-	}
-}
 
 F6_10	pi;
 void QDinit()
@@ -213,21 +176,18 @@ void QDinit()
 		polespi.full = MULT_F6_10s(pi, (1 << 10));
 
 		igain.full = F6_10_CONST(MgetIgain());
-		igain2.full = F6_10_CONST(MgetIgain2());
 		postgain = MgetPostgain();
 
 		deltapos = 0; currpos = 0; lastpos = 0;
 		Slipalpha.full = 0;
 
+		fltemp = (2 * 3.14159265);
+		fltemp *= MgetTimeConst();
+		flconst = (1.0 / fltemp) / ((POLEPAIRS * PWM_FREQUENCY) / cpr); // 1/((2 * pi) * Tr) / (10000 / 2000)
+		fsconst.full = F6_10_CONST(flconst);
+
 		QandDinited = 1;
 	}
-
-	// if Tr is based on rpm we need to re-fetch
-	fltemp = (2 * 3.14159265);
-	fltemp *= MgetTimeConst();
-	flconst = (1.0 / fltemp) / ((POLEPAIRS * PWM_FREQUENCY) / cpr); // 1/((2 * pi) * Tr) / (10000 / 2000)
-	fsconst.full = F6_10_CONST(flconst);
-
 }
 
 uint32_t QLimit (F6_10 QSetPoint)
@@ -265,7 +225,7 @@ uint32_t QLimit (F6_10 QSetPoint)
 	}
 
 	// over temperature
-	if (getTemp () > 150)
+	if (getTemp () > 170)
 	{
 		dif = (getTemp () - 150) * 10;
 		dif *= dif;
@@ -279,7 +239,7 @@ uint32_t QLimit (F6_10 QSetPoint)
 	}
 
 	// make sure we have battery headroom if we are regening
-	if (QSetPoint.full < 0 && getBusvolt () > 355)
+	if (QSetPoint.full < 0 && getBusvolt () > 368)
 	{
 		QSetPoint.full = 0;
 	}
@@ -287,6 +247,7 @@ uint32_t QLimit (F6_10 QSetPoint)
 	return QSetPoint.full;
 }
 
+static F6_10	cmdsp;
 //
 // MCEsetQandD	Set torque and f based magnet values and set the slip value
 //
@@ -301,11 +262,10 @@ void MCEsetQandD (int Q, uint32_t D)
 {
 	static F6_10	ftemp, QSetPoint, DSetPoint;
 	static F6_10	SaveQSetPoint, SaveDSetPoint;
-	static F6_10	rpmbump_Factor;
+	static F6_10	fsmag;
 
-	int Lim;
 
-	QSetPoint.full = Q; 	// delivered << by 10 bits
+	QSetPoint.full = Q ; 	// delivered << by 10 bits
 	DSetPoint.full = D; 	// delivered << by 10 bits
 
 	SaveQSetPoint.full = pfoc->pidQ.sp.full;
@@ -320,20 +280,43 @@ void MCEsetQandD (int Q, uint32_t D)
 	{
 		SaveQSetPoint.full = QSetPoint.full;
 	}
-	SaveDSetPoint.full = DSetPoint.full;
+	else
+	{
+		SaveQSetPoint.full = QSetPoint.full = 0;
+	}
+	if(QSetPoint.full != 0)
+	{
+		SaveDSetPoint.full = DSetPoint.full;
+	}
+	else
+	{
+		SaveDSetPoint.full = 0;
+	}
 
+	// calculate slip
 	ftemp.full = DIV_F6_10(SaveQSetPoint, SaveDSetPoint);	// regen will make negative slip
 	fs.full = MULT_F6_10(ftemp, fsconst);	// accounts for time constant (tr) and 1/2*PI
 
+	fsmag.full = F6_10_CONST(1.25);
+
+	fs.full = MULT_F6_10(fs, fsmag);	// factor
+
+	// invert torque if regening
 	if (QSetPoint.full < 0)
 		{
-		SaveQSetPoint.full = -SaveQSetPoint.full; // slip might be negative but torque setpoint needs to be pos
+		SaveQSetPoint.full = -SaveQSetPoint.full;
 		}
 
 	// scale adjust for Qsp (this really just affects pedal position)
-	SaveQSetPoint.full /= 2;	// number might reach 6500 // should be *.289
+	SaveQSetPoint.full /= 2;
 
-	pfoc->pidQ.sp.full = SaveQSetPoint.full;
+	// experimental absolute q limit
+	if (SaveQSetPoint.full > 5000)
+	{
+		SaveQSetPoint.full = 5000;
+	}
+
+	cmdsp.full = SaveQSetPoint.full;	// allow high speed loop to average
 	pfoc->pidD.sp.full = SaveDSetPoint.full;
 }
 
@@ -425,7 +408,6 @@ void toggleDir (void)
 }
 
 static int iafnum = 0, ibfnum= 0 , icfnum = 0;
-static int ialnum = 0, iblnum= 0 , iclnum = 0;
 /*****************************************************************************
 ** Function name:		CurrentLimit
 **
@@ -441,9 +423,7 @@ void CurrentLimit (void)
 {
 	int ia, ib, ic;
 #define CFMAX 1900		// should be 490 Amps
-#define CLMAX 1000		// should be 300 Amps
 #define CFLTNUM		8 	// number of times this must be true
-#define CLIMNUM		1 	// number of times this must be true
 	int stopflag = 0;
 
 
@@ -456,32 +436,8 @@ void CurrentLimit (void)
 	if (ia < CFMAX) iafnum = 0;
 	if (ib < CFMAX) ibfnum = 0;
 	if (ic < CFMAX) icfnum = 0;
-	if (ia < CLMAX) ialnum = 0;
-	if (ib < CLMAX) iblnum = 0;
-	if (ic < CLMAX) iclnum = 0;
-	climiting = 0;
 	if (pmc->ctrl.enabled)
 	{
-		// test for setpoint limit action
-		if ( ia > CLMAX && ialnum++ > CLIMNUM)
-		{
-//			climiting = 1;
-//			limitState = 5;
-//			pfoc->pidQ.sp.full -= (pfoc->pidQ.sp.full >> 3);
-		}
-		else if ( ib > CLMAX && iblnum++ > CLIMNUM)
-		{
-//			climiting = 1;
-//			limitState = 5;
-//			pfoc->pidQ.sp.full -= (pfoc->pidQ.sp.full >> 3);
-		}
-		else if ( ic > CLMAX && iclnum++ > CLIMNUM)
-		{
-//			climiting = 1;
-//			limitState = 5;
-//			pfoc->pidQ.sp.full -= (pfoc->pidQ.sp.full >> 3);
-		}
-
 		// test faults
 		if ( ia > CFMAX && iafnum++ > CFLTNUM)
 		{
@@ -514,7 +470,6 @@ void CurrentLimit (void)
 
 		faultRunState ();
 	}
-
 }
 
 // input Vd, Vq are the results of PID, output Vd, Vq are limited if nec
@@ -524,7 +479,8 @@ void LimitVqVd(F6_10 *pVq, F6_10 *pVd)
 	F6_10 MMILim, Vq, Vd;
 
 
-	MMIVecMax.full = 1944;		// 95 % of 2047
+//	MMIVecMax.full = 1944;		// 95 % of 2047
+	MMIVecMax.full = 5444;	// test !!!!
 	VdSq.full = pVd->full; VdSq.full = MULT_F22_10(VdSq, VdSq);
 	VqSq.full = pVq->full; VqSq.full = MULT_F22_10(VqSq, VqSq);
 	Vector.full = VdSq.full + VqSq.full;
@@ -545,6 +501,7 @@ void RetPWM (uint16_t * a, uint16_t * b, uint16_t * c );
 F6_10	tpd, tpq;
 F6_10	PJPId, PJPIq;
 extern	uint32_t			gRPM;
+static	uint32_t			avg = 0;
 
 /*****************************************************************************
 ** Function name:		vMC_FOC_Loop
@@ -561,11 +518,15 @@ void vMC_FOC_Loop(void)
 {
 	uint16_t ta, tb, tc;
 
-	// make the oil pwm
+	// make the oil and contactor economizer pwms
 	exeOilPWM ();
 	exeSolPWM ();
 
 //	device_on(FAN);		// timing
+
+	// produce an average qsp
+	avg = (avg * 11 + cmdsp.full) / 12;
+	pfoc->pidQ.sp.full = avg;
 
 	pmc->ctrl.busy = TRUE;
 
@@ -577,18 +538,13 @@ void vMC_FOC_Loop(void)
 	Ib.full = -(Ia.full + Ic.full);
 
 	/* Clarke transformation */
-//	vMC_LIB_F6_10Clarke(Dir?Ic:Ia, Dir?Ia:Ic, &pfoc->Ialpha, &pfoc->Ibeta);
+//	vMC_LIB_F6_10Clarke(Dir?Ib:Ic, Dir?Ic:Ib, &pfoc->Ialpha, &pfoc->Ibeta);
 	vMC_LIB_F6_10Clarke(Ib, Ic, &pfoc->Ialpha, &pfoc->Ibeta);
 
 	getSinCos ();
 
 	/* Park transformation */
-	vMC_LIB_F6_10Park(pfoc->Ialpha,
-				 	  pfoc->Ibeta,
-				 	  &pfoc->Id,
-				 	  &pfoc->Iq,
-				 	  sinAlpha,
-				 	  cosAlpha);
+	vMC_LIB_F6_10Park(pfoc->Ialpha, pfoc->Ibeta, &pfoc->Id, &pfoc->Iq, sinAlpha, cosAlpha);
 
 	// control using NXP clarke and park Ib-Ic
 	pfoc->Vq.full = f6_10MC_LIB_PID(pfoc->Iq, &pfoc->pidQ);
@@ -611,31 +567,20 @@ void vMC_FOC_Loop(void)
 	/* Calculate pwm with SVPWM algorithm */
 	vMC_LIB_F6_10SVPWM(Dir?vr2:vr1, vr3, Dir?vr1:vr2, &pfoc->pwm, &pmc->ctrl.sector);
 
-//	addSRec (getADC (PHASECINDEX), pfoc->pwm.A.full, Slipalpha.full, pfoc->pidQ.err.full, pfoc->Vd.full, pfoc->Vq.full);
-//	addSRec (Ia.full, Ic.full, pfoc->Id.full, pfoc->Iq.full, pfoc->Vd.full, pfoc->Vq.full);
-//	addSRec (Ia.full, Ic.full, pfoc->pwm.A.full, pfoc->Iq.full, pfoc->Id.full, Slipalpha.full / 10);
-//	addSRec (Ia.full, Ic.full, pfoc->pwm.A.full, pfoc->Valpha.full, pfoc->Vbeta.full, Slipalpha.full / 10);
-//	addSRec (Ia.full, Ic.full, pfoc->pidQ.err.full, pfoc->pidD.err.full, (getBusIVal () - getampoffset())*33, Slipalpha.full / 10);
-//	addSRec (pfoc->Id.full, pfoc->Iq.full, pfoc->pidQ.sp.full, Ia.full, Ic.full, Slipalpha.full);
-//	addSRec (Ia.full, Ic.full, PJPId.full, PJPIq.full, pfoc->pidQ.sp.full, Slipalpha.full);
-//	addSRec (pfoc->Vd.full, pfoc->Vq.full, PJPId.full, PJPIq.full, pfoc->pidQ.sp.full, Slipalpha.full);
-//	addSRec (pfoc->pidQ.sp.full, pfoc->Iq.full, pfoc->Vq.full, pfoc->pidD.sp.full, pfoc->Id.full, pfoc->Vd.full);
-//	addSRec (pfoc->pidQ.sp.full, pfoc->Iq.full, pfoc->Vq.full, Ia.full, Ib.full, Ic.full);
-//	addSRec (512-vr1.full, 512-vr2.full, 512-vr3.full, 512-pfoc->pwm.A.full,512-pfoc->pwm.B.full, Slipalpha.full / 10);
-//	addSRec (Ia.full, Ic.full, pfoc->pwm.A.full, sinAlpha.full, cosAlpha.full, Slipalpha.full / 10);
-//	addSRec ((qei_readPos()/10), qei_readDir() * 1000, pfoc->pwm.A.full, pfoc->pwm.B.full, pfoc->pwm.C.full, Slipalpha.full / 10);
-//	addSRec (pfoc->pwm.A.full,pfoc->pwm.B.full,pfoc->pwm.C.full,ta, tb, tc);
-
-
 	if(pmc->ctrl.enabled)vMC_LIB_SetPWM_F6_10(&pfoc->pwm);
 
 	// get the pwm values we just used
-//	RetPWM (&ta, &tb, &tc);
+	RetPWM (&ta, &tb, &tc);
+	uint16_t trpm = (uint16_t)qei_read32RPM();
 
-	addSRec (pfoc->pidQ.sp.full, pfoc->Iq.full, pfoc->Vq.full, fs.full, gRPM, pfoc->Id.full);
-	addSRec (pfoc->Vd.full, Ia.full , Ib.full, Ic.full, sinAlpha.full, cosAlpha.full);
-
-//	dacR ();
+	// add snapshot values to the ring
+	addSRec12 (pfoc->pidQ.sp.full, pfoc->Iq.full, pfoc->Vq.full,
+			   fs.full, trpm,
+			   pfoc->Id.full, pfoc->Vd.full,
+			   Ia.full, pfoc->pwm.A.full,
+			   sinAlpha.full, (uint16_t)currpos,
+			   ta);
+//	addSRec12 ((uint16_t)1,(uint16_t)2,(uint16_t)3,(uint16_t)4,(uint16_t)5,(uint16_t)6,(uint16_t)7,(uint16_t)8,(uint16_t)9,(uint16_t)10,(uint16_t)11,(uint16_t)12);
 
 	pmc->ctrl.busy = FALSE;
 

@@ -17,7 +17,6 @@
 static struct snaprec sr[SNAPMAX];		//
 int srPos = 0;							// position of next snap write
 int	srCollecting = 0;					// set if we are collecting
-int FaultStopped = 0;					// set if the snapshot stopped on a fault
 
 uint16_t srQset;
 uint16_t srSlip;
@@ -27,7 +26,6 @@ uint16_t srPost = 0;
 int resVal[MAXRESIND] = {0, 1, 9, 19, 39};
 
 static uint16_t sDelay = 0, sDelayCnt = 0;
-
 
 // set snapshot resolution
 void setSres (uint16_t delaySteps)
@@ -39,9 +37,7 @@ void setSres (uint16_t delaySteps)
 // Public
 void SnapFault ( void )
 {
-	srPost = 500;		// collect 500 values after the fault
-	FaultStopped = 1;
-
+	srCollecting = 0;
 }
 
 // Public
@@ -65,7 +61,6 @@ void snapInit(void)
 	srPost = 0;
 	srCollecting = 1;
 	setSres (0);
-	FaultStopped = 0;
 }
 
 // Public
@@ -76,19 +71,77 @@ void takeSnapshot (uint16_t qset, uint16_t slip, uint16_t snapRes)
 	srSlip = slip;
 
 	// if we are stopped due to a fault, don't restart until this snapshot has been picked up
-	if (!FaultStopped)
+	// start collecting
+	srCollecting = 0;
+	delayMicros(0, 200, NULL );
+	sDelayCnt = 0;
+	snapSent = 0;
+	srPos = 0;
+	if (snapRes == 10)
 	{
-		// start collecting
-		if (snapRes >= 0 && snapRes < MAXRESIND)
-		{
-			setSres (resVal[snapRes]);
-		}
-		snapSent = 0;
+		setSres (0);
+		srPost = 0;		// waiting for fault
+	}
+	else if (snapRes >= 0 && snapRes < MAXRESIND)
+	{
+		setSres (resVal[snapRes]);
 		srPost = 2000;		// fill the entire buffer
 	}
+	srCollecting = 1;
 }
 
 // Public
+void addSRec12 (uint16_t S1, uint16_t S2, uint16_t S3, uint16_t S4, uint16_t S5, uint16_t S6, uint16_t S7, uint16_t S8, uint16_t S9, uint16_t S10, uint16_t S11, uint16_t S12)
+{
+	if(srCollecting)
+	{
+		if (sDelayCnt)
+		{
+			// honor the resolution setting on snapshot collection
+			sDelayCnt--;
+			return;
+		}
+		else
+		{
+			// reset the delay counter
+			sDelayCnt = sDelay;
+		}
+
+		sr[srPos].S1 = S1;
+		sr[srPos].S2 = S2;
+		sr[srPos].S3 = S3;
+		sr[srPos].S4 = S4;
+		sr[srPos].S5 = S5;
+		sr[srPos].S6 = S6;
+		srPos++;
+		sr[srPos].S1 = S7;
+		sr[srPos].S2 = S8;
+		sr[srPos].S3 = S9;
+		sr[srPos].S4 = S10;
+		sr[srPos].S5 = S11;
+		sr[srPos].S6 = S12;
+		srPos++;
+
+		// handle end point detection
+		if(srPost)
+		{
+			srPost--;
+			srPost--;
+			if (srPost <= 0)
+			{
+				// stop collecting and wait for fetch
+				srCollecting = 0;
+			}
+		}
+
+		// roll the position index if nec.
+		if (srPos >= SNAPMAX)
+		{
+			srPos = 0;
+		}
+	}
+}
+
 void addSRec (uint16_t S1, uint16_t S2, uint16_t S3, uint16_t S4, uint16_t S5, uint16_t S6)
 {
 	if(srCollecting)

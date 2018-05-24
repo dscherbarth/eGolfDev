@@ -85,6 +85,8 @@ uint32_t getBusIVal (void)
 	return busIVal;
 }
 
+extern uint32_t iCounter;
+
 void SSP1_IRQHandler(void)
 {
   uint32_t regValue;
@@ -115,6 +117,7 @@ void SSP1_IRQHandler(void)
   regValue = LPC_SSP1->MIS;
   LPC_SSP1->ICR = regValue;
 //  device_off(FAN);		// timing 19.6uS from conversion completion to here
+  iCounter--;
   vMC_FOC_Loop();
   return;
 }

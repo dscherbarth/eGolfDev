@@ -19,6 +19,7 @@
 #include "models.h"
 
 static int	faultcond = 0;
+extern uint32_t	gRPM;
 
 //
 // faultInit	initialize the interrupt for the IGBT fault line
@@ -84,9 +85,13 @@ void fault_set (void)
 
 }
 
+int fault_count = 0;
+
 void checkFault (int latchfault)
 {
 	int faultret = 0;
+	int output = 0;
+
 
 	setStatVal ( SVFAULT,faultret );
 	if (latchfault)
@@ -111,45 +116,59 @@ void checkFault (int latchfault)
 		if (getBusvolt () > MAXVOLT)
 		{
 			// overvolt fault
-			faultret = FAULT_OVERVOLT;
+//			faultret = FAULT_OVERVOLT;
 		}
 
 		// account for observed voltage drop due to bus current
 		if ((getBusvolt () + (getBuscurrent () * .12)) < MINVOLT)
 		{
 			// undervolt fault (battery empty)
-			faultret = FAULT_UNDERVOLT;
+//			faultret = FAULT_UNDERVOLT;
 		}
 
 		// check bus current
-		if (getBuscurrent () > MgetBusIFLimit ())
-		{
-			// overcurrent
-			faultret = FAULT_OVERCURR;
-		}
+//		if (getBuscurrent () > MgetBusIFLimit ())
+//		{
+//			// overcurrent
+//			faultret = FAULT_OVERCURR;
+//		}
 
 
 		// check temperature
 		if (getTemp () > MAXTEMP)
 		{
 			// overtemp fault
-			faultret = FAULT_OVERTEMP;
+//			faultret = FAULT_OVERTEMP;
 		}
 	}
 
 #define CTEMPTOP 95
 #define CTEMPBOT 90	// need hysteresis
+#define CTEMPMAX	180.0
 
 	// see if we need cooling
+	output = 0;
 	if (getTemp () > CTEMPTOP)
 	{
 		device_off(FAN);	// really on
-		SetOilPWM (1);				// running
+		output = (int)(10.0 - ((CTEMPMAX - getTemp())/9.5));
+		SetOilPWM (output);				// running
+//		SetOilPWM (1);				// running
+
 	}
 	if (getTemp () < CTEMPBOT)
 	{
 		device_on(FAN);	// really off
 		SetOilPWM (0);				// running
+	}
+	if(gRPM > 500)
+	{
+		// make sure the oil pump is on at least minumum
+		if (output < 1)
+		{
+			output = 1;
+			SetOilPWM (output);				// lubricating at a low temp
+		}
 	}
 
 	if (latchfault)
@@ -164,7 +183,7 @@ void checkFault (int latchfault)
 		// visual indication
 		led2_on();
 	}
-
+	fault_count = 0;
 	return;
 }
 
@@ -202,22 +221,27 @@ void EINT3_IRQHandler (void)
 	// clear the interrupt
 	LPC_SC->EXTINT = EINT3;		/* clear interrupt */
 
-	// connect int to raw fault output
-	// this is a real fault
-	// latch the fault condition
-	faultcond = FAULT_DESATURATE;
+//	if(fault_count++ > 1)	// takes 2 interrupts in a row to be real
+//	{
+		// connect int to raw fault output
+		// this is a real fault
+		// latch the fault condition
+		faultcond = FAULT_DESATURATE;
 
-	// set snapshot to stop
-	SnapFault ();
+		// set snapshot to stop
+		SnapFault ();
 
-	// disable foc updates
-	focpwmFaultDisable();
+		// disable foc updates
+		focpwmFaultDisable();
 
-	// run state update
-	faultRunState ();
+		// run state update
+		faultRunState ();
 
-	// visual indication
-	led2_on();
+		// visual indication
+		led2_on();
+
+//		fault_count = 0;
+//	}
 
 	// re-enable the fault interrupt
 	NVIC_EnableIRQ(EINT3_IRQn);

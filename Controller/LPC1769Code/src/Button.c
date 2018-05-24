@@ -94,8 +94,8 @@ void waitForB3 (char *msg)
 *****************************************************************************/
 void handleButtons( void )
 {
-	int v1, v2;
 #ifdef a
+	int v1, v2;
 	phase_t	phdata;
 #endif
 

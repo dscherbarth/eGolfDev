@@ -94,6 +94,12 @@ float getTunevalue (void)
 	return tuneValue;
 }
 
+float accelRPM = 0.0;
+float getAccelRPM (void)
+{
+	return (accelRPM / 21.0);	// accel/decel in G's
+}
+
 float getAccelvalue (void)
 {
 	return accelValue;
@@ -152,6 +158,8 @@ float getTemp (void)
 }
 
 extern	uint32_t			gRPM;
+float accel_avg = 0.0;
+int32_t last_rpm = 0;
 
 void updateSensors (void)
 {
@@ -163,15 +171,16 @@ void updateSensors (void)
 	static int readfirst = 2;
 	uint32_t	avgTemp32;
 	float	accelScaleAdder;
+	static float avgaccValue = 0.0;
 
 
 	// make sure we have some good data then set offsets and zero values
 	if (--readfirst == 0)
 	{
-	saveOffsets();
-	zerovolts ((float)getADC (VOLTSINDEX));
-	zeroamps ((float)getBusIVal ());
-	readfirst = 0;
+		saveOffsets();
+		zerovolts ((float)getADC (VOLTSINDEX));
+		zeroamps ((float)getBusIVal ());
+		readfirst = 0;
 	}
 
 	// temperature
@@ -182,7 +191,7 @@ void updateSensors (void)
 		tempDeg = tempTab (getADC (TEMPINDEX));
 
 		// average
-		avgTemp = (avgTemp * .9) + ((float)tempDeg * .1);
+		avgTemp = (avgTemp * .6) + ((float)tempDeg * .4);
 		avgTemp32 = avgTemp;
 		setStatVal (SVTEMP, avgTemp32);
 	}
@@ -209,11 +218,9 @@ void updateSensors (void)
 
 	// accelerator
 	// read from pot position
-	accelValue = (accelValue * .4) + ((float)getaccVal () * .6) - accelOffset;
-//	accelValue = getaccVal () - accelOffset;
-	accelScaleAdder = accelValue * .115;
-	accelValue += accelScaleAdder;
-	accelValue -= 300;				// space for regen
+	avgaccValue = (avgaccValue * .4) + ((float)getaccVal () * .6);
+	accelValue = avgaccValue + ((avgaccValue - accelOffset) * .215); // rescale to full range
+	accelValue -= 930;				// space for regen
 
 	// tune
 //	tuneValue = (tuneValue * .7) + ((float)getADC (TUNEINDEX) * .3);	// Get the value
@@ -221,8 +228,14 @@ void updateSensors (void)
 //	setStatVal ( SVTUNE, (int32_t)((float)(tuneValue)) );
 
 	// fetch rpm
-	lRPM = (lRPM * .1) + (.9 * (float)qei_readRPM());
+	int32_t trpm = qei_readRPM();
+	lRPM = (lRPM * .1) + (.9 * (float)trpm);
 	gRPM = lRPM;
+
+	// calc acceleration
+	accelRPM = (accel_avg * .9) + (.1 * ((float)(trpm - last_rpm)));
+	last_rpm = trpm;
+	accel_avg = accelRPM;
 
 	// get rpm and position data
 	setStatVal (SVRRPM, gRPM);		//

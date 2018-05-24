@@ -77,9 +77,9 @@ void msg (int16_t msgnum)
 
 }
 
-#define MINVOLTCNT 		2300		// counts at 230 volts
-#define PREPREVOLTCNT	700			// 90 volts
-#define PRECHARGELIMIT	50			// 5 seconds should be plenty of time to pre-charge
+#define MINVOLTCNT 		2200		// counts at 220 volts
+#define PREPREVOLTCNT	600			// 85 volts
+#define PRECHARGELIMIT	60			// 6 seconds should be plenty of time to pre-charge
 
 uint32_t getRunState (void)
 {
@@ -158,7 +158,7 @@ void start (void)
 			zvolts = getADC(VOLTSINDEX);
 
 			// pre-precharge 600ms on needs voltage to go from 0 to 99v else fault
-			for (i=0; i<6; i++)
+			for (i=0; i<8; i++)
 			{
 				updateSensors ();
 				sendHeadData();

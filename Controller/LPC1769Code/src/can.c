@@ -55,7 +55,7 @@ void CAN_ISR_Rx( void )
 void handleHeadRequest (uint16_t headReq);
 void closedUpdateTune (int value, int param);
 
-int32_t dtab = 300;
+int32_t dtab = 1050;
 int32_t reflect = 1;
 int32_t dacaten = 5;
 void sendCANData (uint32_t id, uint32_t data)
@@ -94,7 +94,7 @@ void sendtuneparms()
 	sendCANData (EXP_STD_ID + 250, (int32_t)(dacaten));
 }
 
-int32_t regenVal = 0;
+int32_t regenVal = 1;	// default is regen on
 static float dpval, dival, ddval = 0.0, qpval, qival, qdval, trval;
 void HandleCANRx(CAN_MSG *MsgBuf_RX)
 {
@@ -177,7 +177,7 @@ void HandleCANRx(CAN_MSG *MsgBuf_RX)
 		break;
 
 	case 601:	// regen
-		regenVal = (int32_t)((short)MsgBuf_RX->DataA) - 50;
+		regenVal = (int32_t)((short)MsgBuf_RX->DataA);
 		break;
 	}
 }

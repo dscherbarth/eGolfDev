@@ -1,111 +1,91 @@
 #include "LPC17xx.h"
 #include "type.h"
-#include "adc.h"
-#include "mcpwm.h"
-#include "qei.h"
-#include "lcd.h"
-#include "can.h"
-#include "gpio.h"
 #include "control.h"
 #include "status.h"
 #include "sensors.h"
-#include "timer.h"
-#include "waveform.h"
-#include "leds.h"
-#include "wdt.h"
-#include "power.h"
-#include "app_setup.h"
 #include "models.h"
-#include "sensors.h"
-#include "ssp.h"
-
-
-#define NUMPOLES	4		// big motor
-
-uint32_t enableController=1;
 
 
 uint32_t	gRPM = 0;
 
 void MCEsetQandD (int Q, uint32_t D);
 
-#define OVERI		250
-#define OVERILIMADJ	10
-#define REGEN		25
-#define OVERINEG 	-50
-#define OVERV 		330
-
-/******************************************************************************
-** Function name:		regenval
-**
-** Descriptions:		calculate regen value based on rpm, bus voltage and bus current
-**
-** parameters:			None
-** Returned value:		None
-**
-******************************************************************************/
-int regenval()
+float getF(int val, int bottom, int top)
 {
-	int rval = 0;
-
-
-	// inital val based on rpm
-	rval = gRPM / 25;
-
-	// limit if bus current too high
-	if (getBuscurrent() < OVERINEG)
+	if (val <= bottom)
 	{
-		// toomuch regen current
-		rval = rval * (1 - ((getBuscurrent() + OVERINEG) / OVERINEG));
+		return 1.1;
 	}
-
-	// limit if bus current too high
-	if (getBuscurrent() < OVERV)
+	else if (val > bottom)
 	{
-		// toomuch regen current
-		rval = rval * (1 - ((getBusvolt() + OVERV) / OVERV));
+		return (1.1 - (float)(val - bottom) / (float)(top - bottom));
 	}
-
-
-	return rval;
+	else if (val > top)
+	{
+		return 0.1;
+	}
+	return 0.1;
 }
-
-extern int32_t regenVal;
 
 // return a linear 0 - 1 factor based on where we are in this range
 float voltFactorGet(int volts, int bottom, int top)
 {
-	float factor = 1.0;
+	float factor;
+	static float avg_factor = 0.0;
 
-	if (volts > bottom)
-	{
-		factor = 1.0 - (float)(volts - bottom) / (top - bottom);
-	}
-	else if (volts > top)
-	{
-		factor = 0.0;
-	}
+	factor = getF(volts, bottom, top);
+
+	factor = (avg_factor * .7) + (factor * .3);
+	avg_factor = factor;
+
 	return factor;
 }
 
 float ampFactorGet(int amps, int bottom, int top)
 {
-	float factor = 1.0;
+	float factor;
+	static float avg_factor = 0.0;
 
-	if (amps > bottom)
-	{
-		factor = 1.0 - (float)(amps - bottom) / (top - bottom);
-	}
-	else if (amps > top)
-	{
-		factor = 0.0;
-	}
+	factor = getF(amps, bottom, top);
+
+	factor = (avg_factor * .6) + (factor * .4);
+	avg_factor = factor;
 
 	return factor;
 }
 
+float speedFactorGet(void)
+{
+	float factor;
+	static float avg_factor = 0.0;
+
+	// less than about 45 mph is full factor
+	if (gRPM < 2800)
+	{
+		factor = 1.0;
+	}
+	else if (gRPM > 2800 && gRPM < 4500) // 45 to 60 sees a linear reduction
+	{
+		factor = 1.0 - ((float)(gRPM - 2800) / 1700.0) + .05;
+	}
+	else	// beyond 60 no regen
+	{
+		factor = .05;
+	}
+	factor = (avg_factor * .6) + (factor * .4);
+	avg_factor = factor;
+
+	return factor;
+}
+
+static float Iq_avg = 0.0;
+
+/*
+ * can control be stateless?  at the least we probably need to average the resultant Iq, Id
+ */
+extern int32_t regenVal;
 /******************************************************************************
-** Function name:		readAndControl
+** Function name:		exeControl
 **
 ** Descriptions:		execute the control algorithm
 **
@@ -115,62 +95,63 @@ float ampFactorGet(int amps, int bottom, int top)
 ******************************************************************************/
 void exeControl(void)
 {
-	uint32_t	Is = 0, Id_cmd = 0;
+	uint32_t	Id_cmd = 0;
 	int Iq_cmd = 0;
-	int last_Iqc;
-	int regen;
-	uint32_t localRegenVal;
 
 
-	setStatVal (SVSRPM, getAccelvalue());
-	setStatVal (SVPHAC, (uint32_t)regenVal);
+//	setStatVal (SVSRPM, getAccelvalue());
+//	setStatVal (SVPHAC, (uint32_t)(getAccelRPM() * 100)); // G's * 100
 
-	if (getAccelvalue() > 300) // motoring :-)
+	// greater than 100 is accelerating, less than -50 is decelerating, in between is no action
+	if (getAccelvalue() > 200) // motoring :-)
 	{
 		// get Is_sq based on throttle position (table lookup)
-		Is = MgetAccSq (getAccelvalue()/2);			//0 - 13500 / 3
-
-		Is *= Is;
+		Iq_cmd = MgetAccSq (getAccelvalue()/2);			//0 - 13500 / 3
 
 		// get Id_cmd based on present rpm (table lookup)
 		Id_cmd = MgetMagVal (gRPM);
 
-		if (Id_cmd < Is)
-		{
-			Iq_cmd = sqrt (Is - (Id_cmd * Id_cmd)); // as big as 27000
-		}
-		else
-		{
-			Id_cmd = 0;
-		}
+		Iq_avg = 0.0;
 	}
-	else if (getAccelvalue() < 0)	// decel
+	else if (getAccelvalue() > -420 && getAccelvalue() < -50 && (regenVal & 1))	// decel (regen)
 	{
+		float mvFactor;
+
 		// use regen if requested and bus volts and amps allow
-		if (regenVal > 200 &&		// commanded by cockpit lever for debug
-			(gRPM > 100) )
+		if (gRPM > 400 )
 		{
-#define VOLTSMINHEADROOM 350
-#define VOLTSHEADROOMRANGE 10
-#define MAXAMPS 20
-#define AMPSRANGE 20
-			float voltFactor, ampFactor;
+#define VOLTSMINHEADROOM 355
+#define VOLTSHEADROOMRANGE 15
+#define MAXAMPS 25
+#define AMPSRANGE 10
+			float voltFactor, ampFactor, speedFactor;
 			voltFactor = voltFactorGet(getBusvolt(), VOLTSMINHEADROOM, VOLTSMINHEADROOM + VOLTSHEADROOMRANGE);
 			ampFactor = ampFactorGet(-getBuscurrent(), MAXAMPS, MAXAMPS + AMPSRANGE);
-			setStatVal (SVPHAC, 9999);		// indicator that we are regening..
-			regen = (getAccelvalue() * 3) * voltFactor * ampFactor;
-			Iq_cmd = (regen * 1.1);
+			speedFactor = speedFactorGet();
+			Iq_cmd = (int)(1.5 * ((float)getAccelvalue() * 4.0) * ampFactor * voltFactor * speedFactor);
+			if (Iq_cmd < -3000) Iq_cmd = -3000;
+			mvFactor = 1.0;
+		}
+		else if (gRPM <= 400)
+		{
+			// taper to zero for a soft disconnect
+			Iq_cmd = 0.0;	// soft stop
+			mvFactor = (float)gRPM / 500.0;
+		}
+		// slow the delta change
+//		Iq_avg = (Iq_avg * .6) + (Iq_cmd * .4);
+//		Iq_cmd = Iq_avg;
 
-			// slow the delta change
-			Iq_cmd = last_Iqc - ((last_Iqc - Iq_cmd) >> 3);
-
-			last_Iqc = Iq_cmd;
-			if (Iq_cmd != 0)
-			{
-				Id_cmd = MgetMagVal (gRPM);
-			}
+		if (Iq_cmd != 0)
+		{
+			Id_cmd = (int)((float)MgetMagVal (gRPM) * mvFactor);
 		}
 	}
+	setStatVal (SVSRPM, getAccelvalue());
+//	setStatVal (SVSRPM, Iq_cmd);
+	setStatVal (SVPHAC, Iq_cmd);
+//extern uint32_t iCounter;
+//setStatVal (SVPHAC, iCounter);
 
 	// load cmd values
 	MCEsetQandD(Iq_cmd, Id_cmd);

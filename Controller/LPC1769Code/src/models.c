@@ -64,6 +64,7 @@ static param_table mm_torque[] = { 	{0,				0},
 };
 #endif
 
+#ifdef oldbooktab
 static param_table mm_book_mag[] = { {0,			1050},
 									{1280,			1050},
 									{1536,			1024},
@@ -80,6 +81,26 @@ static param_table mm_book_mag[] = { {0,			1050},
 									{4352,			657},
 									{4608,			624},
 									{7000,			301},
+									{-1,		-1}
+};
+#endif
+
+static param_table mm_book_mag[] = { {0,			1050},
+									{2400,			1050},
+									{2880,			839},
+									{3360,			699},
+									{3840,			599},
+									{4320,			524},
+									{4800,			465},
+									{5280,			419},
+									{5760,			381},
+									{6240,			349},
+									{6720,			322},
+									{7200,			299},
+									{7680,			279},
+									{8160,			262},
+									{8640,			246},
+									{10000,			246},
 									{-1,		-1}
 };
 
@@ -178,11 +199,11 @@ static motor_t	oohhp = {
 };
 
 static motor_t	bighp = {
-		"(big) 140hp motor",	// Eric's motor
+		"(big) 250hp motor",	// Eric's motor
 		2,
 		6500,		// testing
 //		8000,
-		0.280,
+		0.270,
 		3.0,
 		1.0,
 		250.0,		// testing
@@ -190,8 +211,8 @@ static motor_t	bighp = {
 //		300.0,		// yikes!!
 //		400.0,		// double yikes!
 		2,			// post gain (atten)
-		1.2, .55, 0.0,
-		1.10, .73, 0.0,
+		1.25, .55, 0.0,
+		1.15, .73, 0.0,
 		4096,
 		mm_book_mag,
 		mm_book_torque,
@@ -240,8 +261,6 @@ uint32_t MgetMagVal (uint32_t rpm)
 	int magval;
 	float sperc, tv;
 
-
-//	return dtab;
 
 	// protect against un-selected model
 	if (!selMod)
@@ -407,8 +426,8 @@ int MgetRPMLimit (void)
 extern	uint32_t			gRPM;
 float MgetTimeConst (void)
 {
-	return ((float)MgetTimeC(gRPM) / 1000);
-//	return (selMod? selMod->tr_factor:0.0);
+//	return ((float)MgetTimeC(gRPM) / 1000);
+	return (selMod? selMod->tr_factor:0.0);
 }
 
 void MsetTimeConst (float tc)

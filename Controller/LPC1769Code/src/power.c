@@ -15,6 +15,8 @@ float 	voffset = 0.0, aoffset = 0.0;		// set zero volts and amps before bus is t
 float	battcapacity = 1;
 uint32_t	aoffset32 = 2036;
 
+extern uint32_t	gRPM;
+
 void zerovolts (float volts)
 {
 	// with the solenoid off there should be no voltage or current numbers so save these values as the 'zero' point
@@ -24,8 +26,8 @@ void zerovolts (float volts)
 void zeroamps (float amps)
 {
 	// with the solenoid off there should be no voltage or current numbers so save these values as the 'zero' point
-//	aoffset = amps * .2929;
-//	aoffset32 = amps;
+	aoffset = amps * .2929;
+	aoffset32 = amps;
 }
 
 uint32_t getampoffset (void)
@@ -43,13 +45,14 @@ void zerowatthours (void)
 
 void addwatthours (float volts, float amps, float seconds)
 {
-	watthours += ((amps - aoffset) * (volts - voffset) * (seconds / 3600.0) );		// should handle regen too if amps is negative
-	sec_count++;
-//	setStatVal (SVPHAC, (uint32_t)(getBusIVal ()));
-//	setStatVal (SVSRPM, (uint32_t)(aoffset));
-	setStatVal (SVPHCC, (uint32_t)watthours);
-
+	if (gRPM > 0)
+	{
+		watthours += ((amps - aoffset) * (volts - voffset) * (seconds / 3600.0) );		// should handle regen too if amps is negative
+		sec_count++;
+//		setStatVal (SVPHCC, (uint32_t)watthours);
+	}
 }
+
 void setwatthourmax (float maxwatthour)
 {
 	battcapacity = MAXWATTHOUR;

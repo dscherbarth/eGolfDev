@@ -57,6 +57,7 @@ __CRP const unsigned int CRP_WORD = CRP_NO_CRP ;
 
 
 void vMC_FOC_Init(void);
+void MCPWM_EnableLimInt(void);
 /*****************************************************************************
 ** Function name:		initialize
 **

@@ -35,7 +35,7 @@ void TestPhaseCurrent(phase_t	*p)
 	p->pAz = pc1; p->pCz = pc2; p->Bz = pc3;
 
 	// pA - pB, collect
-	test_outputs(TESTVAL, TESTVAL, 0);
+//	test_outputs(TESTVAL, TESTVAL, 0);
 	pc1 = pc2 = 0;
 	for (i=0; i<TESTDUR; i++)
 	{
@@ -47,11 +47,11 @@ void TestPhaseCurrent(phase_t	*p)
 	p->abA = pc1; p->abC = pc2;
 
 	// settle
-	test_outputs(0, 0, 0);	// zeroize
+//	test_outputs(0, 0, 0);	// zeroize
 	delayMicros(0, 100000, NULL );		// .001Sec delay
 
 	// PA - PC, collect
-	test_outputs(TESTVAL, 0, TESTVAL);
+//	test_outputs(TESTVAL, 0, TESTVAL);
 	pc1 = pc2 = 0;
 	for (i=0; i<TESTDUR; i++)
 	{
@@ -63,11 +63,11 @@ void TestPhaseCurrent(phase_t	*p)
 	p->acA = pc1; p->acC = pc2;
 
 	// settle
-	test_outputs(0, 0, 0);	// zeroize
+//	test_outputs(0, 0, 0);	// zeroize
 	delayMicros(0, 100000, NULL );		// .001Sec delay
 
 	// PB - PC, collect
-	test_outputs(0, TESTVAL, TESTVAL);
+//	test_outputs(0, TESTVAL, TESTVAL);
 	pc1 = pc2 = 0;
 	for (i=0; i<TESTDUR; i++)
 	{
@@ -79,7 +79,7 @@ void TestPhaseCurrent(phase_t	*p)
 	p->bcA = pc1; p->bcC = pc2;
 
 	// reset to zero state
-	test_outputs(0, 0, 0);	// off
+//	test_outputs(0, 0, 0);	// off
 
 }
 
