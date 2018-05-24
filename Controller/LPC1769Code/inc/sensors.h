@@ -11,6 +11,7 @@ float getBuscurrent (void);
 float getTemp (void);
 float getTunevalue (void);
 float getAccelvalue (void);
+float getAccelRPM (void);
 void saveOffsets(void);
 
 
