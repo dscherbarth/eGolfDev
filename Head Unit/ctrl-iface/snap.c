@@ -176,6 +176,8 @@ void *snap_wait (void *ptr)
 
 char *srestime[] = {".12S", ".25S", "1.2S", "2.5S", "5S", "A .12", "A .25", "A 1.2", "A 2.5", "A 5", "F .12"};
 
+void snap_continue(void);
+
 void *snap_get (void *ptr)
 {
 	int i;
@@ -218,6 +220,8 @@ void *snap_get (void *ptr)
 			break;
 		}
 	}
+	
+	snap_continue();
 	
 	// handle cleanup
 	if (i == 100)
@@ -283,6 +287,7 @@ void snap_get_start (void)
 
 static pthread_t	snap_1;
 static pthread_t	snap_2;
+void snap_pausef(void);
 void snapshot_action (void) 
 {
 	int i;
@@ -291,6 +296,7 @@ void snapshot_action (void)
 	ctog = 0;
 	
 	// trigger the snapshot
+	snap_pausef();
 	can_cmd (STARTSNAP, get_snapres_val() == 10?get_snapres_val():get_snapres());
 
 	

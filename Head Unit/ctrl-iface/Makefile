@@ -30,7 +30,7 @@ LIBS = `pkg-config --libs gtk+-2.0` -lm
 CFLAGS = `pkg-config --cflags gtk+-2.0`
 
 # define the C source files
-SRCS = egolfui.c can.c ewin.c tune.c snap.c buttons.c msg.c batt.c dial.c
+SRCS = egolfui.c can.c ewin.c tune.c snap.c buttons.c msg.c batt.c dial.c brakeif.c
 
 # define the C object files 
 #

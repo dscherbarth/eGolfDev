@@ -34,7 +34,7 @@ extern gfloat x[], y[];
 extern gfloat yv[];
 
 
-static int data_current = FALSE;
+static int data_current = 0;
 static float bp=0.15, lastbp=99.0;
 float dischargebp = 0.0;
 
@@ -79,9 +79,9 @@ struct live_data	l_d[] = {
 //	{"temp", 	"", 0, TEMP,	500, 90,	NULL, NULL, NULL, NULL, 510, 130, 150, 150,   0, 200,    150, "Temp" },
 	{"rrpm", 	"", 0, RRPM, 	100, 90,	NULL, NULL, NULL, NULL,  250, 150, 300, 300,   0, 10000, 7000, "RPM" },
 	{"srpm", 	"", 0, SRPM, 	200, 90,	NULL, NULL, NULL, NULL,   0,   0,   0,   0,   0,   0,      0, ""},
-	{"volts", 	"", 0, VOLTS,	300, 90,	NULL, NULL, NULL, NULL, 150, 470, 160, 160,   0, 400,      0, "Volts"},
-	{"amps", 	"", 0, AMPS,	400, 90,	NULL, NULL, NULL, NULL, 320, 470, 160, 160, -100, 400,    200, "Amps" },
-	{"temp", 	"", 0, TEMP,	500, 90,	NULL, NULL, NULL, NULL, 490, 470, 160, 160,   0, 200,    150, "Temp" },
+	{"volts", 	"", 0, VOLTS,	300, 90,	NULL, NULL, NULL, NULL, 150, 455, 160, 160,   230, 370,      0, "Volts"},
+	{"amps", 	"", 0, AMPS,	400, 90,	NULL, NULL, NULL, NULL, 320, 455, 160, 160, -100, 400,    200, "Amps" },
+	{"temp", 	"", 0, TEMP,	500, 90,	NULL, NULL, NULL, NULL, 490, 455, 160, 160,   0, 200,    150, "Temp" },
 	{"phAc", 	"", 0, PHAC,	600, 90,	NULL, NULL, NULL, NULL,   0,   0,   0,   0,   0,   0,      0, ""},
 	{"wattH", 	"", 0, PHCC,	700, 90,	NULL, NULL, NULL, NULL,   0,   0,   0,   0,   0,   0,      0, ""},
 	{"wH/M", 	"", 0, BATP,	800, 90,	NULL, NULL, NULL, NULL,   0,   0,   0,   0,   0,   0,      0, ""},
@@ -148,6 +148,8 @@ static int ttestrunning = 0;
 static int ttestindex = 0;
 static int ttestaccpos [ TTESTSIZE ];
 static int ttestspeed [ TTESTSIZE ];
+
+void setBraking (int on);
 
 void setTorqueResult (float result)
 {
@@ -366,7 +368,7 @@ void live_data_update (struct can_frame *frame)
 				
 				if (frame->can_id == BATP)
 				{
-					data_current = TRUE;
+					data_current = 4;
 
 					// update the battery condition
 					dv = frame->data[0] + (frame->data[1] << 8);
@@ -420,7 +422,7 @@ void live_data_update (struct can_frame *frame)
 				
 				if (frame->can_id == l_d[i].canid)
 				{
-					data_current = TRUE;
+					data_current = 4;
 
 					// this is the one
 
@@ -458,6 +460,8 @@ void toggle_snapres(void)
 	snap_res_val++;
 	if (snap_res_val > 10) snap_res_val = 0;
 	gtk_label_set (GTK_LABEL (snapres), srestime[snap_res_val]);	
+//	setBraking (snap_res_val & 1);
+
 }
 
 int get_snapres_val (void)
@@ -568,24 +572,28 @@ static float instwhpermile = 0.0;
 static float whpermile = 0.0;
 static float total_kwh = 0.0;
 static float total_mile = 0.0;
+unsigned int baseCount = 0;
+
+unsigned int getCount(void);
 
 void update_kwh (int rpm, float kw)
 {
 	GdkColor yellow = {0, 0xffff, 0x3fff, 0x0000};
     GdkColor red = {0, 0xffff, 0x0000, 0x0000};
     GdkColor green = {0, 0x0000, 0xffff, 0x1fff};
+    GdkColor blue = {0, 0x0000, 0x1fff, 0x7fff};
 	static float kwh_mile = 0.0;
 	char btemp[40];
 	
 	
 	// calc mph rpm/100 in second gear is approx mph. This is called 4 times/second so..
-	float miles = (float)rpm/(3600.0*396.8);
+	float miles = (float)(getCount() - baseCount)/11350.0; // coming directly from the wheels gear doesn't mater
 	total_mile += miles;
+	baseCount = getCount();
 	
 	// calc kwh/mile
-	float kwh = (kw<0.0?0.0:kw)/(3600.0*3.968);
-	if (kwh > 0.0)
-		total_kwh += kwh;
+	float kwh = (kw)/(3600.0*3.968);
+	total_kwh += kwh;
 
 	if (miles > 0)
 		instwhpermile = (kwh * 1000.0) / miles;
@@ -601,8 +609,8 @@ void update_kwh (int rpm, float kw)
 	{
 		whpermile = 0.0;
 	}
-	
-	float internal_kwh_mile = miles/kwh > 10.0 ? 10.0 : miles/kwh;
+	float akwh = kwh>0.0?kwh:-kwh;
+	float internal_kwh_mile = miles/akwh > 10.0 ? 10.0 : miles/akwh;
 	
 	// calc average
 	if(rpm < 100)
@@ -619,8 +627,13 @@ void update_kwh (int rpm, float kw)
 	sprintf (btemp, "%4.1f%", kwh_mile);
 	gtk_progress_bar_set_text ((GtkProgressBar *)prog_kwh_mile, btemp);
 	gtk_progress_bar_set_fraction ((GtkProgressBar *)prog_kwh_mile, ((kwh_mile/10.0) > 1.0)?1.0:(kwh_mile/10.0));
-	
-	if(kwh_mile < 3)
+
+	if(kwh_mile < 0.0)
+	{
+		// blue
+		gtk_widget_modify_bg((GtkWidget *)prog_kwh_mile, GTK_STATE_SELECTED, &blue);
+	}
+	else if(kwh_mile < 3)
 	{
 		// red
 		gtk_widget_modify_bg((GtkWidget *)prog_kwh_mile, GTK_STATE_SELECTED, &red);
@@ -683,6 +696,8 @@ void init_kw (GtkWidget *fixed_win)
 
 GdkColor backg = {0, 0xcfff, 0xcfff, 0xcfff};
 
+void openSerial(void);
+
 void init_windows (int argc, char *argv[])
 {
 
@@ -726,8 +741,14 @@ void init_windows (int argc, char *argv[])
 	gtk_window_set_keep_above(GTK_WINDOW(window),TRUE);
 	gtk_window_fullscreen(GTK_WINDOW(window));
 
+	// try to open the brake light channel
+	openSerial();
+	usleep(1000);
+	baseCount = getCount();
+
 	// start updating the data
 	pthread_create (&win_update, NULL, update_window, NULL);
+	
 
 }
 
@@ -781,6 +802,9 @@ void handle_soc()
 	}
 }
 
+static float lastAmps = 0.0;
+static float actualVolts = 0.0;
+
 void *update_window (void *ptr)
 {
 	int i, cnt;
@@ -826,7 +850,19 @@ void *update_window (void *ptr)
 				// update the dial displays
 				if (l_d[i].dial)
 				{
-					gtk_adjustment_set_value(l_d[i].dial_adjustment, i == 3?l_d[i].val/10:l_d[i].val);
+					if(l_d[i].canid == AMPS)
+					{
+						lastAmps = (float)l_d[i].val/10.0;
+					}
+					if(l_d[i].canid == VOLTS)
+					{
+						actualVolts = ((actualVolts * .9) + (((float)l_d[i].val + (lastAmps * .204)) * .1));
+						gtk_adjustment_set_value(l_d[i].dial_adjustment, (int)actualVolts);
+					}
+					else
+					{
+						gtk_adjustment_set_value(l_d[i].dial_adjustment, i == 3?l_d[i].val/10:l_d[i].val);
+					}
 				}
 			}
 			else
@@ -880,7 +916,11 @@ void *update_window (void *ptr)
 #else
 		hp = (float) (amps / 10) * (float) volts * .0013404; 
 		if (rpm < 10) rpm = 0;		
-		sprintf(sens_data, "%6.1f", whpermile);
+
+// test, fetch and display counts
+//		sprintf(sens_data, "%d", getCount());
+//		sprintf(sens_data, "%6.1f", whpermile);
+		sprintf(sens_data, "%6.1f %6.1f", total_mile, (total_kwh * 1000) /total_mile);
 		gtk_label_set (GTK_LABEL (load_cell_h), sens_data);
 		
 		sprintf(sens_data, "%6.1f", total_kwh * 1000);
@@ -898,6 +938,7 @@ void *update_window (void *ptr)
 
 		if (kw < 0)
 		{
+			setBraking (1);
 			sprintf (btemp, "R kw %4.1f%", -kw * 100.0);
 			gtk_progress_bar_set_text ((GtkProgressBar *)prog_kw_regen, btemp);
 			gtk_progress_bar_set_fraction ((GtkProgressBar *)prog_kw, 0.0);
@@ -908,6 +949,7 @@ void *update_window (void *ptr)
 		}
 		else
 		{
+			setBraking (0);
 			sprintf (btemp, "kw %4.1f%", kw * 100.0);
 			gtk_progress_bar_set_text ((GtkProgressBar *)prog_kw, btemp);
 			gtk_progress_bar_set_fraction ((GtkProgressBar *)prog_kw_regen, 0.0);
@@ -917,7 +959,7 @@ void *update_window (void *ptr)
 		}	
 		
 		gdk_threads_leave();
-		data_current = FALSE;
+		if(data_current > 0) data_current--;
 
 		usleep(250000);
 	}

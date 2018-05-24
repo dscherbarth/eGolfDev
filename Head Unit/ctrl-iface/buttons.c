@@ -119,19 +119,30 @@ void change_cmd_action (void)
 #define JOGINCR	10
 #define JOGSET	382
 #define TORQUESET	383
-
+int regenOn = 1;
+GtkWidget *regenb;
 void ttest_action (void)
 {
 	// reset torque test 
 	// start the torque test
-	startTorquetest ();
+	if(regenOn)
+	{
+		can_cmd (REGENSET, 0);
+		regenOn = 0;
+		gtk_button_set_label ((GtkButton *)regenb, "Regen On");
+	}
+	else
+	{
+		can_cmd (REGENSET, 1);
+		regenOn = 1;
+		gtk_button_set_label ((GtkButton *)regenb, "Regen Off");
+	}
 }
 
 void create_buttons (GtkWidget *window, GtkWidget *fixed)
 {
 	GtkWidget *button1;
 	GtkWidget *button3;
-	GtkWidget *button4;
 	GtkWidget *button5;
 
 	GtkObject *adj1;
@@ -172,10 +183,10 @@ void create_buttons (GtkWidget *window, GtkWidget *fixed)
 	gtk_signal_connect (GTK_OBJECT (button3), "clicked",
 						GTK_SIGNAL_FUNC (snapshot_action), NULL);
 
-	button4 = gtk_button_new_with_label("T test");
-	gtk_fixed_put(GTK_FIXED(fixed), button4, 875, 320);
-	gtk_widget_set_size_request(button4, 90, 50);
-	gtk_signal_connect (GTK_OBJECT (button4), "clicked",
+	regenb = gtk_button_new_with_label("Regen Off");
+	gtk_fixed_put(GTK_FIXED(fixed), regenb, 875, 320);
+	gtk_widget_set_size_request(regenb, 120, 50);
+	gtk_signal_connect (GTK_OBJECT (regenb), "clicked",
 						GTK_SIGNAL_FUNC (ttest_action), NULL);
 
 	// create recharge button

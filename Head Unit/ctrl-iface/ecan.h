@@ -26,6 +26,7 @@
 #define BATTDATA	525
 #define BATTDATA2	526
 #define HTRDATA		545
+#define REGENSET	601
 
 #define CMDSEND		356		// can msgid to command the controller
 

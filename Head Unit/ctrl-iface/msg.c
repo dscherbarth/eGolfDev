@@ -51,7 +51,7 @@ void msg_init (GtkWidget *topwin, PangoFontDescription *dfdata)
 {
 	msglabel = gtk_label_new ("                                        ");
 	gtk_widget_modify_font(msglabel, dfdata);  
-	gtk_fixed_put(GTK_FIXED(topwin), msglabel, 380, 750);
+	gtk_fixed_put(GTK_FIXED(topwin), msglabel, 80, 630);
 }
 
 GtkWidget 	*faultlabel = NULL;

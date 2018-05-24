@@ -168,14 +168,31 @@ void update_batt_bar()
 	gdk_threads_leave();
 }
 
+int snap_pause = 0;
+void snap_pausef(void)
+{
+	snap_pause = 1;
+}
+void snap_continue(void)
+{
+	snap_pause = 0;
+}
+
 int freshness = 0;
 void *update_battery_data (void *ptr)
 {
 	while(1)
 	{
-		usleep(200000);
-		freshness++;
-		batt_fetch ();
+		if (!snap_pause)
+		{
+			usleep(500000);
+			freshness++;
+			batt_fetch ();
+		}
+		else
+		{
+			usleep(500000);
+		}
 	}
 }
 
@@ -183,8 +200,15 @@ void *update_battery_window (void *ptr)
 {
 	while(1)
 	{
-		usleep(500000);
-		batt_data_update ();
+		if (!snap_pause)
+		{
+			usleep(750000);
+			batt_data_update ();
+		}
+		else
+		{
+			usleep(500000);
+		}
 	}
 }
 
@@ -195,18 +219,22 @@ int pack_volts = 0;
 
 void can_cmd (int cmd, int data0);
 
+int bank_waiting[8] = {0,0,0,0,0,0,0,0};
 int fetch_cell = 0;
+
 void batt_fetch (void)
 {
-	
 	can_cmd (524, 1);
 	can_cmd (524, 2 | fetch_cell << 8);
+	bank_waiting[fetch_cell]++;		// need to hear back 
 	fetch_cell++; if(fetch_cell > 7)fetch_cell = 0;
-		
+
+#ifdef HTR_DEBUG	
 	if(fetch_cell == 0)
 	{
 		can_cmd(544, 1);
 	}
+#endif
 }
 
 int htrtemp = 0;
@@ -266,6 +294,8 @@ void batt_parse (unsigned char *bbuffer)
 		if (bbuffer[0] >= 0 && bbuffer[0] < 8)
 		{
 			// parse detailed cell info
+			bank_waiting[bbuffer[0]] = 0;	// reset the counter
+			
 			// volts
 			for(i=0; i<11; i++)
 			{
@@ -356,7 +386,7 @@ void batt_data_update (void)
 	GdkColor red = {0, 0xffff, 0x0000, 0x0000};
     GdkColor black = {0, 0x0000, 0x0000, 0x0000};
 	float std_dev, avg;
-	int i;
+	int i, j;
 	
 	
 	if( freshness > 5)
@@ -372,6 +402,14 @@ void batt_data_update (void)
 		for(i=0; i<8; i++) temps [i] = 0;
 	}
 	
+	for(i=0; i<8; i++)
+	{
+		if(bank_waiting[i] > 5)	// data is old
+		{
+			for(j=0; j<11; j++) cells [i*11+j] = 0;
+			temps [i] = 0;
+		}
+	}
 	// calc average
 	avg = 0;
 	for(i=0; i<88; i++)
